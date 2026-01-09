@@ -1,0 +1,6 @@
+PARA CORRER EL BACK:
+.\venv\Scripts\Activate
+uvicorn main:app --reload
+
+PARA CORRER EL FRONT:
+npm run dev

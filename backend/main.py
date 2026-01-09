@@ -27,10 +27,10 @@ origins = [
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,  # Qué dominios pueden hablarte
+    allow_origins=["*"],  # <--- EL CAMBIO CLAVE: El asterisco libera todo
     allow_credentials=True,
-    allow_methods=["*"],    # Permitir todos los métodos (GET, POST, etc)
-    allow_headers=["*"],    # Permitir todos los headers
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 @app.get("/")
