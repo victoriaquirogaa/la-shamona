@@ -14,6 +14,24 @@ except Exception as e:
     print(f"❌ Error conectando a Firebase: {e}")
 
 app = FastAPI()
+# --- IMPORTAR EL MIDDLEWARE (Agrégalo arriba con los otros imports) ---
+from fastapi.middleware.cors import CORSMiddleware
+
+app = FastAPI()
+
+# --- CONFIGURACIÓN DE CORS (El Puente) ---
+origins = [
+    "http://localhost:5174",
+    "http://127.0.0.1:5174",
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,  # Qué dominios pueden hablarte
+    allow_credentials=True,
+    allow_methods=["*"],    # Permitir todos los métodos (GET, POST, etc)
+    allow_headers=["*"],    # Permitir todos los headers
+)
 
 @app.get("/")
 def home():
