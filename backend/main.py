@@ -1,47 +1,33 @@
-from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
-import firebase_admin
-from firebase_admin import credentials, firestore
-
-# --- CONEXIÓN REAL ---
-try:
-    # Busca el archivo en la misma carpeta donde corre el script
-    cred = credentials.Certificate("serviceAccountKey.json")
-    firebase_admin.initialize_app(cred)
-    db = firestore.client()
-    print("✅ ¡Conexión con Firebase exitosa!")
-except Exception as e:
-    print(f"❌ Error conectando a Firebase: {e}")
-
-app = FastAPI()
-# --- IMPORTAR EL MIDDLEWARE (Agrégalo arriba con los otros imports) ---
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+# Importamos las piezas nuevas
+from database import db 
+from routers import yo_nunca
+from routers import la_puta
+# from routers import admin (cuando lo crees)
 
 app = FastAPI()
 
-# --- CONFIGURACIÓN DE CORS (El Puente) ---
-origins = [
-    "http://localhost:5174",
-    "http://127.0.0.1:5174",
-]
-
+# --- CORS (Seguridad) ---
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # <--- EL CAMBIO CLAVE: El asterisco libera todo
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+# --- CONECTAR LOS ROUTERS ---
+
+# 1. Juego Yo Nunca (Rutas: /juegos/yo-nunca/...)
+app.include_router(yo_nunca.router, prefix="/juegos/yo-nunca", tags=["Yo Nunca"])
+
+# 2. Juego La Puta (Rutas: /juegos/la-puta/sacar-carta)
+app.include_router(la_puta.router, prefix="/juegos/la-puta", tags=["La Puta"])
+
+# 3. Admin (Futuro)
+# app.include_router(admin.router, prefix="/admin", tags=["Admin"])
+
 @app.get("/")
 def home():
-    return {"estado": "online", "mensaje": "Si ves esto, el servidor corre"}
-
-@app.get("/prueba-db")
-def prueba_db():
-    # Esto va a crear un documento de prueba en tu nube
-    ref = db.collection('pruebas').add({
-        'mensaje': 'Hola desde Python',
-        'fecha': firestore.SERVER_TIMESTAMP
-    })
-    return {"id_creado": ref[1].id, "status": "Guardado en Firestore"}
+    return {"estado": "Backend Modular Operativo 🚀"}
