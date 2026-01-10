@@ -26,6 +26,11 @@ PALOS = ["Espada", "Basto", "Oro", "Copa"]
 class CrearPartidaInput(BaseModel):
     jugadores: list[str]
 
+# GET
+@router.get("/")
+def estado_juego():
+    return {"juego": "La Puta", "estado": "Activo", "reglas": MAZO_REGLAS}
+
 # 1. CREAR LA MESA
 @router.post("/crear")
 def crear_partida(datos: CrearPartidaInput):
