@@ -2,8 +2,18 @@ PARA CORRER EL BACK:
 .\venv\Scripts\Activate
 uvicorn main:app --reload
 
+si baje cambios y falla (en back):
+pip install -r requirements.txt
+
+si descargo algo en el back, antes del commit: 
+pip freeze > requirements.txt
+
+
 PARA CORRER EL FRONT:
 npm run dev
+
+si falla el front: 
+npm install
 
 RAMAS:
 git branch      -      ver en que rama estas
@@ -15,10 +25,12 @@ git merge nombre-de-tu-rama     -   fusionar la rama con main
 git push origin main        -       subir resultado final
 git branch -d nombre-de-tu-rama     -       borrar rama que ya no sirva
 git status      - ver que cambie y no guarde
-git checkout .      - vuelvo al ultimo commit
+git checkout .      - vuelvo al ultimo commit BORRA LO QUE HICISTE SI NO LE HICISTE COMMIT
 
 trabajando sobre la rama: 
 git add .
 git commit -m "algo"
 git push -u origin nombre-de-tu-rama        la  primera vez en la rama
 git push            las siguientes
+
+para ver la documentacion: http://127.0.0.1:8000/docs
