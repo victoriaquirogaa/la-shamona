@@ -4,3 +4,21 @@ uvicorn main:app --reload
 
 PARA CORRER EL FRONT:
 npm run dev
+
+RAMAS:
+git branch      -      ver en que rama estas
+git checkout -b nombre-de-tu-rama       -      crear una rama y saltar ahi desde donde estas
+git checkout nombre-de-tu-rama      -    cambiar de rama
+git checkout main       -       volver a rama principal
+git pull origin main        -   BAJAR ALGO DE LA NUBE
+git merge nombre-de-tu-rama     -   fusionar la rama con main
+git push origin main        -       subir resultado final
+git branch -d nombre-de-tu-rama     -       borrar rama que ya no sirva
+git status      - ver que cambie y no guarde
+git checkout .      - vuelvo al ultimo commit
+
+trabajando sobre la rama: 
+git add .
+git commit -m "algo"
+git push -u origin nombre-de-tu-rama        la  primera vez en la rama
+git push            las siguientes
