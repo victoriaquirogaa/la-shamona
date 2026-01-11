@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from database import db
 import random
-from ..utils import generar_codigo_sala 
+from .utils import generar_codigo_sala 
 # O si moviste el archivo: from .utils import generar_codigo_sala
 
 router = APIRouter()

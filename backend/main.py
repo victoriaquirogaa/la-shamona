@@ -5,6 +5,7 @@ from database import db
 from routers import yo_nunca
 from routers import la_puta
 from routers import impostor
+from routers import peaje
 # from routers import admin (cuando lo crees)
 
 app = FastAPI()
@@ -28,6 +29,9 @@ app.include_router(la_puta.router, prefix="/juegos/la-puta", tags=["La Puta"])
 
 # 3. Juego El impostor (Rutas: /juegos/impostor)
 app.include_router(impostor.router, prefix="/juegos/impostor", tags=["Impostor"])
+
+# 4. Juego Peaje (Rutas: /juegos/peaje)
+app.include_router(peaje.router, prefix="/juegos/peaje", tags=["Peaje"])
 
 # 3. Admin (Futuro)
 # app.include_router(admin.router, prefix="/admin", tags=["Admin"])
