@@ -136,3 +136,50 @@ def consultar_estado(id_sala: str):
         "frase_final": f"¡{ganador} es el más probable!",
         "detalle_grafico": datos_grafico 
     }
+
+# --- NUEVO MODELO ---
+class SiguienteTarjetaInput(BaseModel):
+    id_sala: str
+
+# --- NUEVO ENDPOINT PARA MODO PASAMANOS ---
+@router.post("/siguiente-tarjeta")
+def siguiente_tarjeta(datos: SiguienteTarjetaInput):
+    doc_ref = db.collection('partidas_votacion').document(datos.id_sala)
+    doc = doc_ref.get()
+    
+    if not doc.exists:
+        raise HTTPException(status_code=404, detail="Partida no encontrada")
+        
+    partida = doc.to_dict()
+    
+    # 1. TRAER PREGUNTAS (Igual que antes)
+    config_ref = db.collection('configuracion_juegos').document('votacion').get()
+    if config_ref.exists:
+        todas_las_frases = config_ref.to_dict().get('frases', [])
+    else:
+        todas_las_frases = ["Error: No hay preguntas en la BD"]
+
+    # 2. FILTRAR USADAS
+    usadas = set(partida.get('historial_preguntas', []))
+    disponibles = [p for p in todas_las_frases if p not in usadas]
+    
+    # Reset si se acabaron
+    if not disponibles:
+        disponibles = todas_las_frases
+        usadas = set()
+        
+    pregunta_elegida = random.choice(disponibles)
+    usadas.add(pregunta_elegida)
+    
+    # 3. ACTUALIZAR HISTORIAL (Pero NO cambiamos el estado a 'votando')
+    doc_ref.update({
+        "pregunta_actual": pregunta_elegida,
+        "historial_preguntas": list(usadas),
+        "estado": "pasamanos" # Solo informativo
+    })
+    
+    # 4. DEVOLVER LA TARJETA
+    return {
+        "pregunta": pregunta_elegida,
+        "mensaje": "Leéla en voz alta y pasá el celu"
+    }

@@ -1,7 +1,7 @@
 import random
 import string
 
-def generar_codigo_sala(largo=4):
+def generar_codigo_sala(largo=6):
     """
     Genera un código aleatorio de letras mayúsculas y números.
     Ejemplo: 'A4X9' o 'BEER'
