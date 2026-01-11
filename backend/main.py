@@ -7,6 +7,7 @@ from routers import la_puta
 from routers import impostor
 from routers import peaje
 from routers import piramide
+from routers import votacion
 # from routers import admin (cuando lo crees)
 
 app = FastAPI()
@@ -36,6 +37,9 @@ app.include_router(peaje.router, prefix="/juegos/peaje", tags=["Peaje"])
 
 # 5. Juego Piramide (Rutas: /juegos/piramide)
 app.include_router(piramide.router, prefix="/juegos/piramide", tags=["Piramide"])
+
+# 6. Juego Quien es mas probable que? (/juegos/votacion)
+app.include_router(votacion.router, prefix="/juegos/votacion", tags=["Votacion"])
 
 # 3. Admin (Futuro)
 # app.include_router(admin.router, prefix="/admin", tags=["Admin"])
