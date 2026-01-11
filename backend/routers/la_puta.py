@@ -2,6 +2,8 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from database import db
 import random
+from ..utils import generar_codigo_sala 
+# O si moviste el archivo: from .utils import generar_codigo_sala
 
 router = APIRouter()
 
@@ -34,14 +36,29 @@ def estado_juego():
 # 1. CREAR LA MESA
 @router.post("/crear")
 def crear_partida(datos: CrearPartidaInput):
+    # 1. Generamos el código corto
+    codigo_sala = generar_codigo_sala()
+    
+    # 2. Preparamos los datos
     nueva_sala = {
         "jugadores": datos.jugadores,
-        "turno_index": 0,  # Arranca el primer jugador de la lista
-        "ultima_carta": None
+        "turno_index": 0,
+        "ultima_carta": None,
+        "puta_actual": None
     }
-    # Guardamos en una colección nueva 'partidas_la_puta'
-    ref = db.collection('partidas_la_puta').add(nueva_sala)
-    return {"mensaje": "Mesa lista", "id_sala": ref[1].id}
+    
+    # 3. Guardamos con .set() usando NUESTRO código
+    doc_ref = db.collection('partidas_la_puta').document(codigo_sala)
+    
+    # (Opcional) Validación de colisión rápida
+    if doc_ref.get().exists:
+        codigo_sala = generar_codigo_sala()
+        doc_ref = db.collection('partidas_la_puta').document(codigo_sala)
+        
+    doc_ref.set(nueva_sala)
+    
+    # 4. Devolvemos el código corto
+    return {"mensaje": "Mesa lista", "id_sala": codigo_sala}
 
 # 2. JUGAR TURNO (La lógica de punteros)
 @router.post("/{id_sala}/sacar-carta")

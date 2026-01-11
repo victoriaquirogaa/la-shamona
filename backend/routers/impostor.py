@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from database import db
 import random
+from utils import generar_codigo_sala # <--- Agrega esto arriba
 
 router = APIRouter()
 
@@ -57,13 +58,28 @@ def crear_partida(datos: CrearPartidaImpostor):
         "estado": "jugando"
     }
     
-    ref = db.collection('partidas_impostor').add(nueva_partida)
+    # --- NUEVA LÓGICA DE CÓDIGO CORTO ---
+    codigo_sala = generar_codigo_sala()
+    
+    # Definimos la referencia CON el ID que nosotros queremos
+    doc_ref = db.collection('partidas_impostor').document(codigo_sala)
+    
+    # IMPORTANTE: Validar que no exista (Colisión). 
+    # Es raro con 4 letras, pero un buen ingeniero siempre verifica.
+    if doc_ref.get().exists:
+        # Si tenemos mala suerte y existe, probamos de nuevo
+        codigo_sala = generar_codigo_sala()
+        doc_ref = db.collection('partidas_impostor').document(codigo_sala)
+
+    # En vez de .add(), usamos .set() para guardar con NUESTRO ID
+    doc_ref.set(nueva_partida) 
     
     return {
         "mensaje": "Partida creada", 
-        "id_sala": ref[1].id,
+        "id_sala": codigo_sala, # <--- Ahora devolvemos "XJ9P" en vez de "7yXm..."
         "categoria": titulo_cat
     }
+    
 
 # --- RUTA 2: MODO PASAMANOS (Un solo cel) ---
 @router.post("/crear-local")
