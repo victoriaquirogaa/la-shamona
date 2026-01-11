@@ -16,21 +16,74 @@ si falla el front:
 npm install
 
 RAMAS:
-git branch      -      ver en que rama estas
-git checkout -b nombre-de-tu-rama       -      crear una rama y saltar ahi desde donde estas
-git checkout nombre-de-tu-rama      -    cambiar de rama
-git checkout main       -       volver a rama principal
-git pull origin main        -   BAJAR ALGO DE LA NUBE
-git merge nombre-de-tu-rama     -   fusionar la rama con main
-git push origin main        -       subir resultado final
-git branch -d nombre-de-tu-rama     -       borrar rama que ya no sirva
-git status      - ver que cambie y no guarde
-git checkout .      - vuelvo al ultimo commit BORRA LO QUE HICISTE SI NO LE HICISTE COMMIT
+================================================================
+ MANUAL DE GIT PARA TRABAJAR EN EQUIPO 🚀
+================================================================
 
-trabajando sobre la rama: 
-git add .
-git commit -m "algo"
-git push -u origin nombre-de-tu-rama        la  primera vez en la rama
-git push            las siguientes
+PASO 1: PREPARAR LA BASE (Siempre hacé esto al arrancar el día)
+----------------------------------------------------------------
+Antes de escribir una sola línea de código, asegurate de tener 
+lo último que subió el otro para no pisarse.
+
+1. Ir a la rama principal:
+   git checkout main
+
+2. Bajar las actualizaciones de la nube:
+   git pull origin main
+
+
+PASO 2: CREAR TU ESPACIO DE TRABAJO (RAMA)
+----------------------------------------------------------------
+Nunca trabajes directo en 'main'. Creá una rama con un nombre 
+descriptivo de lo que vas a hacer (ej: feature/juego-rico-pobre, 
+fix/error-firebase, etc).
+
+1. Crear rama y moverse a ella automáticamente:
+   git checkout -b feature/nombre-de-tu-tarea
+
+   (Si tirás 'git status' ahora, debería decirte que estás en tu rama nueva).
+
+
+PASO 3: PROGRAMAR Y GUARDAR CAMBIOS (LOOP DE TRABAJO)
+----------------------------------------------------------------
+Acá escribís código, modificás archivos, probás que ande, etc.
+Cuando tengas algo listo para guardar:
+
+1. Ver qué archivos modificaste (opcional, para chequear):
+   git status
+
+2. Agregar todos los cambios al paquete:
+   git add .
+
+3. Guardar el paquete con una etiqueta (Commit):
+   git commit -m "Descripción breve de lo que hiciste"
+
+
+PASO 4: SUBIR TU TRABAJO A LA NUBE
+----------------------------------------------------------------
+Cuando termines tu tarea y quieras subirla a GitHub.
+OJO: La primera vez que subís una rama nueva, el comando cambia.
+
+1. Subir la rama nueva:
+   git push origin feature/nombre-de-tu-tarea
+
+despues de la primera vez: 
+   git push
+
+
+PASO 5: UNIR TODO (PULL REQUEST)
+----------------------------------------------------------------
+Esto se hace desde la página web de GitHub.
+
+1. Entrá a https://github.com/victoriaquirogaa/la-shamona
+2. Vas a ver un cartel amarillo que dice "Compare & Pull Request".
+3. Le das clic, revisás que esté todo bien y le das "Create Pull Request".
+4. Después le das "Merge" (botón verde) para fusionarlo con main.
+
+----------------------------------------------------------------
+CLAVES EXTRA:
+- Si te equivocaste de rama: 'git checkout nombre-rama'
+- Si querés borrar una rama vieja local: 'git branch -d nombre-rama'
+================================================================
 
 para ver la documentacion: http://127.0.0.1:8000/docs
