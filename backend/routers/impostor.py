@@ -2,14 +2,14 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from database import db
 import random
-from routers.utils import generar_codigo_sala # <--- Agrega esto arriba
+from routers.utils import generar_codigo_sala
 
 router = APIRouter()
 
 # --- MODELO DE ENTRADA ---
 class CrearPartidaImpostor(BaseModel):
     jugadores: list[str] # Ej: ["Fran", "Gaston", "Victor"]
-    categoria_id: str = None # Opcional. Ej: "argentina". Si es None, es aleatoria.
+    categoria_id: str = None # Opcional.
 
 # --- FUNCIÓN AUXILIAR: TRAER PALABRAS ---
 def obtener_datos_categoria(cat_id=None):
@@ -19,21 +19,18 @@ def obtener_datos_categoria(cat_id=None):
     coleccion_ref = db.collection('categorias_impostor')
 
     if cat_id:
-        # 1. Buscamos la específica
         doc = coleccion_ref.document(cat_id).get()
         if not doc.exists:
             raise HTTPException(status_code=404, detail="Categoría no encontrada")
         data = doc.to_dict()
         return data['titulo'], data['palabras']
     else:
-        # 2. Elegimos una al azar de todas las disponibles
-        docs = list(coleccion_ref.stream()) # Traemos todas (son poquitas, no pasa nada)
+        docs = list(coleccion_ref.stream())
         if not docs:
             raise HTTPException(status_code=500, detail="No hay categorías en la BD")
         
         doc_elegido = random.choice(docs)
         data = doc_elegido.to_dict()
-        # Usamos .get() por si te olvidaste de ponerle título en la BD
         return data.get('titulo', 'General'), data.get('palabras', [])
 
 # --- RUTA 1: MODO ONLINE (Cada uno en su cel) ---
@@ -42,41 +39,38 @@ def crear_partida(datos: CrearPartidaImpostor):
     if len(datos.jugadores) < 3:
         raise HTTPException(status_code=400, detail="Se necesitan mínimo 3 jugadores")
 
+    # 1. LIMPIEZA DE NOMBRES (Vital para evitar errores de mayúsculas)
+    jugadores_limpios = [j.strip().title() for j in datos.jugadores]
+
     # A. Buscamos datos en Firebase
     titulo_cat, lista_palabras = obtener_datos_categoria(datos.categoria_id)
     
-    # B. Elegimos palabra e impostor
+    # B. Elegimos palabra e impostor (usando la lista limpia)
     palabra_secreta = random.choice(lista_palabras)
-    impostor = random.choice(datos.jugadores)
+    impostor = random.choice(jugadores_limpios)
     
     # C. Guardamos la partida
     nueva_partida = {
-        "jugadores": datos.jugadores,
+        "jugadores": jugadores_limpios,
         "categoria": titulo_cat,
         "palabra_secreta": palabra_secreta,
         "impostor": impostor,
         "estado": "jugando"
     }
     
-    # --- NUEVA LÓGICA DE CÓDIGO CORTO ---
+    # D. Generación de Código Seguro
     codigo_sala = generar_codigo_sala()
-    
-    # Definimos la referencia CON el ID que nosotros queremos
     doc_ref = db.collection('partidas_impostor').document(codigo_sala)
     
-    # IMPORTANTE: Validar que no exista (Colisión). 
-    # Es raro con 4 letras, pero un buen ingeniero siempre verifica.
     if doc_ref.get().exists:
-        # Si tenemos mala suerte y existe, probamos de nuevo
         codigo_sala = generar_codigo_sala()
         doc_ref = db.collection('partidas_impostor').document(codigo_sala)
 
-    # En vez de .add(), usamos .set() para guardar con NUESTRO ID
     doc_ref.set(nueva_partida) 
     
     return {
         "mensaje": "Partida creada", 
-        "id_sala": codigo_sala, # <--- Ahora devolvemos "XJ9P" en vez de "7yXm..."
+        "id_sala": codigo_sala,
         "categoria": titulo_cat
     }
     
@@ -87,24 +81,22 @@ def crear_partida_local(datos: CrearPartidaImpostor):
     if len(datos.jugadores) < 3:
         raise HTTPException(status_code=400, detail="Se necesitan mínimo 3 jugadores")
 
-    # A. Buscamos datos en Firebase
+    # Limpieza aquí también por consistencia
+    jugadores_limpios = [j.strip().title() for j in datos.jugadores]
+
     titulo_cat, lista_palabras = obtener_datos_categoria(datos.categoria_id)
 
-    # B. Lógica del juego
     palabra_secreta = random.choice(lista_palabras)
-    impostor = random.choice(datos.jugadores)
+    impostor = random.choice(jugadores_limpios)
     
-    # C. Armamos la respuesta para el Frontend
     roles_asignados = []
-    for jugador in datos.jugadores:
+    for jugador in jugadores_limpios:
         if jugador == impostor:
             mision = {"nombre": jugador, "rol": "IMPOSTOR", "palabra": "???"}
         else:
             mision = {"nombre": jugador, "rol": "CIUDADANO", "palabra": palabra_secreta}
         roles_asignados.append(mision)
         
-    # (Opcional) Guardamos estadística en BD si quieres
-    
     return {
         "modo": "pasamanos",
         "categoria": titulo_cat,
@@ -117,15 +109,19 @@ def obtener_mision(id_sala: str, nombre_jugador: str):
     doc_ref = db.collection('partidas_impostor').document(id_sala)
     doc = doc_ref.get()
     
+    # 1. PROTECCIÓN ANTI-CRASH
     if not doc.exists:
-        raise HTTPException(status_code=404, detail="Partida no encontrada")
+        raise HTTPException(status_code=404, detail="Sala no encontrada. Verificá el código.")
     
     data = doc.to_dict()
     
-    if nombre_jugador not in data['jugadores']:
-        raise HTTPException(status_code=403, detail="No estás en esta partida")
+    # 2. LIMPIEZA DEL NOMBRE ENTRANTE (Para que haga match con la BD)
+    nombre_limpio = nombre_jugador.strip().title()
+    
+    if nombre_limpio not in data['jugadores']:
+        raise HTTPException(status_code=403, detail=f"No estás en esta partida (Intentaste como '{nombre_limpio}')")
 
-    es_impostor = (data['impostor'] == nombre_jugador)
+    es_impostor = (data['impostor'] == nombre_limpio)
     
     if es_impostor:
         return {

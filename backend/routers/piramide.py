@@ -51,15 +51,22 @@ def calcular_consecuencia_piramide(fila_index, cantidad_coincidencias):
 
 @router.post("/crear")
 def crear_partida(jugadores: list[str]):
+    jugadores_limpios = [j.strip().title() for j in jugadores]
     codigo = generar_codigo_sala()
     mazo = generar_mazo()
     
     # Estructura inicial de los jugadores
-    players_data = {nombre: {"cartas": [], "tragos": 0} for nombre in jugadores}
+    datos_jugadores = {}
+    for nombre in jugadores_limpios:
+        datos_jugadores[nombre] = {
+            "cartas": [], 
+            "tragos": 0
+        }
+
 
     nueva_partida = {
-        "jugadores": jugadores,
-        "datos_jugadores": players_data,
+        "jugadores": jugadores_limpios,
+        "datos_jugadores": datos_jugadores,
         "mazo": mazo,
         "fase": "RECOLECCION",  # RECOLECCION o PIRAMIDE
         "ronda_actual": 1,      # 1, 2 o 3 (para saber qué preguntar)
@@ -78,7 +85,9 @@ def crear_partida(jugadores: list[str]):
 def apostar_carta(datos: ApostarInput):
     doc_ref = db.collection('partidas_piramide').document(datos.id_sala)
     doc = doc_ref.get()
-    if not doc.exists: raise HTTPException(status_code=404, detail="Partida no encontrada")
+    
+    if not doc.exists:
+        raise HTTPException(status_code=404, detail="Sala no encontrada.")
     partida = doc.to_dict()
 
     if partida['fase'] != "RECOLECCION":
@@ -200,6 +209,9 @@ def apostar_carta(datos: ApostarInput):
 def voltear_carta_piramide(datos: VoltearInput):
     doc_ref = db.collection('partidas_piramide').document(datos.id_sala)
     doc = doc_ref.get()
+    
+    if not doc.exists:
+        raise HTTPException(status_code=404, detail="Sala no encontrada.")
     partida = doc.to_dict()
     
     if partida['fase'] != "PIRAMIDE":

@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from database import db
-from .utils import generar_codigo_sala
+from routers.utils import generar_codigo_sala 
 import random
 
 router = APIRouter()
@@ -21,7 +21,10 @@ def generar_mazo():
 # --- ENDPOINTS ---
 
 @router.post("/crear")
-def crear_partida(jugadores: list[str]): # Recibe lista de nombres, aunque es individual
+def crear_partida(jugadores: list[str]): 
+    # 1. LIMPIEZA DE NOMBRES
+    jugadores_limpios = [j.strip().title() for j in jugadores]
+
     codigo = generar_codigo_sala()
     mazo = generar_mazo()
     
@@ -29,7 +32,7 @@ def crear_partida(jugadores: list[str]): # Recibe lista de nombres, aunque es in
     carta_inicial = mazo.pop()
     
     nueva_partida = {
-        "jugadores": jugadores,
+        "jugadores": jugadores_limpios, # Guardamos la lista limpia
         "turno_actual": 0, # Índice del jugador que le toca
         "posicion": 0,     # Casilla del tablero (0 a 6)
         "carta_visible": carta_inicial,
@@ -53,8 +56,9 @@ def jugar_turno(datos: JugarTurnoInput):
     doc_ref = db.collection('partidas_peaje').document(datos.id_sala)
     doc = doc_ref.get()
     
+    # 2. PROTECCIÓN ANTI-CRASH
     if not doc.exists:
-        raise HTTPException(status_code=404, detail="Partida no encontrada")
+        raise HTTPException(status_code=404, detail="Sala no encontrada. Verificá el código exacto (mayúsculas/minúsculas).")
     
     partida = doc.to_dict()
     
@@ -136,7 +140,7 @@ def jugar_turno(datos: JugarTurnoInput):
         "carta_nueva": carta_nueva,
         "resultado": resultado,
         "nueva_posicion": nueva_posicion,
-        "accion": accion_extra, # El Frontend debe reaccionar a esto (animación de peaje o trago)
+        "accion": accion_extra, 
         "mensaje": mensaje,
         "terminado": (partida['estado'] == "terminado")
     }

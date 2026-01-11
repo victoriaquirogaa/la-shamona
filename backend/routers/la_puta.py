@@ -64,18 +64,23 @@ def calcular_cadena_tragos(nombre_victima, mapa_jugadores, visitados=None):
 
 @router.post("/crear")
 def crear_partida(datos: NuevoJuegoInput):
-    codigo = generar_codigo_sala()
+    # --- LIMPIEZA DE NOMBRES ---
+    # Convertimos "vicky" -> "Vicky", "GASTON" -> "Gaston"
+    # El .strip() quita espacios vacíos adelante o atrás
+    jugadores_limpios = [j.strip().title() for j in datos.jugadores]
+    
+    codigo = generar_codigo_sala() # Esto ya genera 6 dígitos
     mazo = [f"{n} de {p}" for n in range(1, 13) for p in ["Espada", "Basto", "Oro", "Copa"]]
     random.shuffle(mazo)
     
     datos_jugadores = {}
-    for j in datos.jugadores:
+    for j in jugadores_limpios:
         datos_jugadores[j] = {
             "putas": [] 
         }
 
     nueva_partida = {
-        "jugadores_lista": datos.jugadores,
+        "jugadores_lista": jugadores_limpios, # Usamos la lista limpia
         "datos_jugadores": datos_jugadores,
         "mazo": mazo,
         "descarte": [],
@@ -90,6 +95,12 @@ def crear_partida(datos: NuevoJuegoInput):
 def sacar_carta(datos: TurnoInput):
     doc_ref = db.collection('partidas_laputa').document(datos.id_sala)
     doc = doc_ref.get()
+    
+    # --- PROTECCIÓN ANTI-CRASH ---
+    if not doc.exists:
+        # El 404 es el código estándar de "No encontrado"
+        raise HTTPException(status_code=404, detail="No existe una partida con ese código. Revisá mayúsculas/minúsculas.")
+        
     partida = doc.to_dict()
     
     if not partida['mazo']:
@@ -98,11 +109,13 @@ def sacar_carta(datos: TurnoInput):
     carta = partida['mazo'].pop(0)
     jugador_actual = partida['jugadores_lista'][partida['turno_index']]
     
+    # ... (El resto del código sigue igual hasta el return) ...
+    # Copia el resto de tu lógica de reglas aquí abajo
+    
     # Analizar número
-    numero = carta.split(" ")[0] # "7 de Espada" -> "7"
+    numero = carta.split(" ")[0]
     regla = REGLAS.get(numero, "Toma un trago")
     
-    # Avanzar turno
     nuevo_index = (partida['turno_index'] + 1) % len(partida['jugadores_lista'])
     
     doc_ref.update({
@@ -111,53 +124,33 @@ def sacar_carta(datos: TurnoInput):
         "turno_index": nuevo_index
     })
     
-    # --- LÓGICA DE ACCIONES ---
+    # ... (Copiar lógica de accion_requerida que hicimos antes) ...
+    # Si quieres te la pego completa de nuevo para que no te líes
+    
     accion_requerida = "NINGUNA"
-    resultado_extra = {} # Aquí mandamos info extra según la carta
+    resultado_extra = {}
 
-    # CARTA 1: TOMAS VOS (Calculamos cadena automática)
     if numero == "1":
         afectados = calcular_cadena_tragos(jugador_actual, partida['datos_jugadores'])
-        resultado_extra = {
-            "mensaje_trago": f"Le toca a {jugador_actual}, pero arrastra a: {', '.join(afectados)}",
-            "toman_lista": afectados
-        }
-
-    # CARTA 2: ELEGIR VICTIMA
+        resultado_extra = {"mensaje_trago": f"Toma {jugador_actual} y sus putas", "toman_lista": afectados}
     elif numero == "2":
         accion_requerida = "ELEGIR_VICTIMA"
-        # Enviamos lista de todos para que elija
         resultado_extra = {"opciones": partida['jugadores_lista']}
-
-    # CARTA 3: TOMAN TODOS (Cálculo Matemático de Putas)
     elif numero == "3":
+        # ... (Tu lógica de toman todos) ...
         conteo_tragos = {j: 0 for j in partida['jugadores_lista']}
-        
-        # Simulamos que CADA jugador dispara una cadena
         for iniciador in partida['jugadores_lista']:
-            # Si 'iniciador' toma, ¿quiénes más caen con él?
             cadena = calcular_cadena_tragos(iniciador, partida['datos_jugadores'])
             for victima in cadena:
                 conteo_tragos[victima] += 1
-        
-        # Formateamos para el frontend
         lista_final = [{"nombre": k, "tragos": v} for k, v in conteo_tragos.items()]
-        # Ordenamos por cantidad de tragos (el más borracho arriba)
         lista_final.sort(key=lambda x: x['tragos'], reverse=True)
-        
         resultado_extra = {"detalle_toman_todos": lista_final}
-
-    # CARTA 5: LA PUTA (Asignar)
     elif numero == "5":
         accion_requerida = "ELEGIR_PUTA"
         resultado_extra = {"opciones": [j for j in partida['jugadores_lista'] if j != jugador_actual]}
-
-    # CARTA 10: DEDITO (Activar botón especial)
     elif numero == "10":
         accion_requerida = "INICIAR_DEDITO"
-        # El front debe mostrar un botón flotante que diga "¡Vi un dedo!" o "Perdió alguien"
-
-    # JUEGOS DONDE ALGUIEN PIERDE AL FINAL (4, 6, 7, 8, 9, 11)
     elif numero in ["4", "6", "7", "8", "9", "11"]:
         accion_requerida = "ELEGIR_PERDEDOR"
         resultado_extra = {"opciones": partida['jugadores_lista']}
@@ -173,34 +166,55 @@ def sacar_carta(datos: TurnoInput):
 @router.post("/asignar-puta")
 def asignar_puta(datos: AsignarPutaInput):
     doc_ref = db.collection('partidas_laputa').document(datos.id_sala)
-    partida = doc_ref.get().to_dict()
+    doc = doc_ref.get()
+    
+    # 1. Protección Anti-Crash
+    if not doc.exists:
+        raise HTTPException(status_code=404, detail="Partida no encontrada")
+    
+    partida = doc.to_dict()
     mapa = partida['datos_jugadores']
     
-    # REGLA ANULACIÓN (Espejito)
-    if datos.dueño in mapa[datos.mascota]['putas']:
-        mapa[datos.mascota]['putas'].remove(datos.dueño)
-        mensaje = f"¡ESPEJITO! {datos.dueño} se liberó de {datos.mascota}."
+    # 2. Limpieza de nombres
+    dueño_limpio = datos.dueño.strip().title()
+    mascota_limpia = datos.mascota.strip().title()
+    
+    # Validación extra: ¿Existen estos jugadores?
+    if dueño_limpio not in mapa or mascota_limpia not in mapa:
+        raise HTTPException(status_code=400, detail="Uno de los jugadores no existe en esta partida")
+
+    # 3. Lógica de Anulación (Usando los nombres limpios)
+    if dueño_limpio in mapa[mascota_limpia]['putas']:
+        mapa[mascota_limpia]['putas'].remove(dueño_limpio)
+        mensaje = f"¡ESPEJITO! {dueño_limpio} se liberó de {mascota_limpia}."
     else:
-        if datos.mascota not in mapa[datos.dueño]['putas']:
-            mapa[datos.dueño]['putas'].append(datos.mascota)
-        mensaje = f"{datos.mascota} ahora es la puta de {datos.dueño}."
+        if mascota_limpia not in mapa[dueño_limpio]['putas']:
+            mapa[dueño_limpio]['putas'].append(mascota_limpia)
+        mensaje = f"{mascota_limpia} ahora es la puta de {dueño_limpio}."
 
     doc_ref.update({"datos_jugadores": mapa})
     return {"mensaje": mensaje, "estado_actual": mapa}
 
 @router.post("/registrar-trago")
 def registrar_trago(datos: RegistrarTragoInput):
-    """
-    Se usa para CARTA 2, CARTA 10 (Dedito) y JUEGOS (4,6,7,8,9,11).
-    Calcula la cadena de tragos de la víctima elegida.
-    """
     doc_ref = db.collection('partidas_laputa').document(datos.id_sala)
-    partida = doc_ref.get().to_dict()
+    doc = doc_ref.get()
     
-    cadena_de_borrachos = calcular_cadena_tragos(datos.perdedor, partida['datos_jugadores'])
+    if not doc.exists:
+        raise HTTPException(status_code=404, detail="Partida no encontrada")
+        
+    partida = doc.to_dict()
+    
+    # Limpiamos el nombre del perdedor
+    perdedor_limpio = datos.perdedor.strip().title()
+    
+    if perdedor_limpio not in partida['datos_jugadores']:
+         raise HTTPException(status_code=400, detail=f"El jugador {perdedor_limpio} no está en la partida")
+    
+    cadena_de_borrachos = calcular_cadena_tragos(perdedor_limpio, partida['datos_jugadores'])
     
     return {
-        "mensaje": f"Perdió {datos.perdedor}.",
+        "mensaje": f"Perdió {perdedor_limpio}.",
         "toman": cadena_de_borrachos,
         "cantidad_afectados": len(cadena_de_borrachos)
     }

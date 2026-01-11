@@ -25,14 +25,17 @@ class SiguienteTarjetaInput(BaseModel):
 
 @router.post("/crear")
 def crear_partida(jugadores: list[str]):
+    # LIMPIEZA: " vicky " -> "Vicky"
+    jugadores_limpios = [j.strip().title() for j in jugadores]
+    
     codigo = generar_codigo_sala()
     
     nueva_partida = {
-        "jugadores": jugadores,
+        "jugadores": jugadores_limpios,
         "estado": "esperando",
         "pregunta_actual": "Esperando inicio...",
         "modo_actual": "PERSONAS",
-        "opciones_actuales": jugadores, # Por defecto votamos gente
+        "opciones_actuales": jugadores_limpios, # Por defecto votamos gente
         "votos": {}, 
         "historial_preguntas": [] 
     }
@@ -42,11 +45,11 @@ def crear_partida(jugadores: list[str]):
 
 @router.post("/nueva-ronda")
 def iniciar_ronda(datos: NuevaRondaInput):
-    doc_ref = db.collection('partidas_votacion').document(datos.id_sala)
+    doc_ref = db.collection('partidas_votacion').document(datos.id_sala) # O id_sala directo según el endpoint
     doc = doc_ref.get()
     
     if not doc.exists:
-        raise HTTPException(status_code=404, detail="Partida no encontrada")
+        raise HTTPException(status_code=404, detail="Sala no encontrada. Verificá el código exacto (mayúsculas/minúsculas).")
         
     partida = doc.to_dict()
     
@@ -96,7 +99,11 @@ def iniciar_ronda(datos: NuevaRondaInput):
 
 @router.post("/votar")
 def emitir_voto(datos: VotoInput):
-    doc_ref = db.collection('partidas_votacion').document(datos.id_sala)
+    doc_ref = db.collection('partidas_votacion').document(datos.id_sala) # O id_sala directo según el endpoint
+    doc = doc_ref.get()
+    
+    if not doc.exists:
+        raise HTTPException(status_code=404, detail="Sala no encontrada. Verificá el código exacto (mayúsculas/minúsculas).")
     
     # Guardamos el voto
     clave = f"votos.{datos.nombre_votante}"
@@ -106,7 +113,11 @@ def emitir_voto(datos: VotoInput):
 
 @router.get("/{id_sala}/estado")
 def consultar_estado(id_sala: str):
-    doc_ref = db.collection('partidas_votacion').document(id_sala)
+    doc_ref = db.collection('partidas_votacion').document(id_sala) # CORRECTO
+    doc = doc_ref.get()
+    
+    if not doc.exists:
+        raise HTTPException(status_code=404, detail="Sala no encontrada. Verificá el código exacto (mayúsculas/minúsculas).")
     partida = doc_ref.get().to_dict()
     
     jugadores = partida['jugadores']
@@ -183,11 +194,11 @@ def consultar_estado(id_sala: str):
 # --- MODO PASAMANOS (Simple) ---
 @router.post("/siguiente-tarjeta")
 def siguiente_tarjeta(datos: SiguienteTarjetaInput):
-    doc_ref = db.collection('partidas_votacion').document(datos.id_sala)
+    doc_ref = db.collection('partidas_votacion').document(datos.id_sala) # O id_sala directo según el endpoint
     doc = doc_ref.get()
     
     if not doc.exists:
-        raise HTTPException(status_code=404, detail="Partida no encontrada")
+        raise HTTPException(status_code=404, detail="Sala no encontrada. Verificá el código exacto (mayúsculas/minúsculas).")
         
     partida = doc.to_dict()
     
