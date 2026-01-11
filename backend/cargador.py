@@ -127,8 +127,8 @@ if __name__ == "__main__":
     # cargar_profesiones()
     
     # Nuevas Premium
-    cargar_picante()
-    cargar_argentina_bizarra()
-    cargar_terror()
+    # cargar_picante()
+    # cargar_argentina_bizarra()
+    # cargar_terror()
     
     print("¡Listo! Categorías PREMIUM subidas a Firebase 💸")
