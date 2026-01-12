@@ -5,7 +5,7 @@ from datetime import datetime
 
 # Conexión
 cred = credentials.Certificate("serviceAccountKey.json")
-firebase_admin.initialize_app(cred) # Descomentar si es necesario
+# firebase_admin.initialize_app(cred) # Descomentar si es necesario
 db = firestore.client()
 
 # Simulamos un ID de usuario (esto te lo da Firebase Auth en la app real)
