@@ -1,29 +1,39 @@
 from fastapi import APIRouter, HTTPException
-from database import db # <--- Importamos la conexión que creaste en database.py
+from database import db
 import random
-from models import JuegoCarta # Asumiendo que definiste este modelo
+from models import JuegoCarta
 
 router = APIRouter()
 
-@router.get("/")
-def sacar_carta():
-    # 1. Buscamos el documento en Firebase
-    #    (OJO: Usa los mismos nombres que pusiste en la consola)
-    doc_ref = db.collection('mazos').document('yo_nunca')
+# Ahora la ruta recibe una "categoria" (gratis o hot)
+@router.get("/{categoria}")
+def sacar_carta(categoria: str):
+    
+    # 1. Definimos los nombres de documentos válidos en tu BD
+    mazos_validos = {
+        "gratis": "yo_nunca_gratis",
+        "hot": "yo_nunca_hot"
+    }
+
+    # 2. Seguridad: Si piden algo raro, error
+    if categoria not in mazos_validos:
+        raise HTTPException(status_code=400, detail="Categoría no válida")
+
+    nombre_documento = mazos_validos[categoria]
+
+    # 3. Buscamos en Firebase
+    doc_ref = db.collection('mazos').document(nombre_documento)
     doc = doc_ref.get()
 
-    # 2. Validamos que exista
     if not doc.exists:
-        raise HTTPException(status_code=404, detail="No se encontró el mazo en la BD")
+        raise HTTPException(status_code=404, detail=f"No se encontró el mazo {nombre_documento}")
 
-    # 3. Obtenemos los datos
     data = doc.to_dict()
     lista_frases = data.get('frases', [])
 
     if not lista_frases:
-        return {"texto": "¡Se acabaron las cartas! Agrega más en Firebase.", "tipo": "info"}
+        return JuegoCarta(texto="No hay cartas en este mazo todavía.", tipo="info")
 
-    # 4. Elegimos una al azar
     frase_elegida = random.choice(lista_frases)
 
-    return JuegoCarta(texto=frase_elegida, tipo="verdad")
+    return JuegoCarta(texto=frase_elegida, tipo=categoria)

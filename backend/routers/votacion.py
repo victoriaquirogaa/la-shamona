@@ -235,3 +235,37 @@ def siguiente_tarjeta(datos: SiguienteTarjetaInput):
         "pregunta": pregunta_elegida,
         "mensaje": "Leéla en voz alta"
     }
+
+# --- ENDPOINT RÁPIDO (Para jugar sin crear sala) ---
+@router.get("/rapido/{modo}")
+def sacar_carta_rapida(modo: str):
+    # 1. Elegir el documento y el campo correcto (LA CLAVE ESTÁ AQUÍ)
+    if modo == "votacion":
+        doc_nombre = "votacion"
+        campo_firebase = "preguntas"  # <--- Votación usa PREGUNTAS
+    elif modo == "rico_pobre":
+        doc_nombre = "rico_pobre" # Asegúrate que este doc exista en 'configuracion_juegos'
+        campo_firebase = "frases"     # <--- Rico/Pobre usa FRASES
+    else:
+        # Por defecto
+        doc_nombre = "votacion"
+        campo_firebase = "preguntas"
+
+    # 2. Buscar en Firebase
+    doc_ref = db.collection('configuracion_juegos').document(doc_nombre)
+    doc = doc_ref.get()
+
+    if not doc.exists:
+        return {"texto": f"Error: No existe el documento '{doc_nombre}' en Firebase", "tipo": "error"}
+
+    data = doc.to_dict()
+    lista = data.get(campo_firebase, [])
+
+    if not lista:
+        return {"texto": f"¡No hay contenido en '{campo_firebase}'!", "tipo": "info"}
+
+    # 3. Devolver carta
+    return {
+        "texto": random.choice(lista),
+        "tipo": modo
+    }

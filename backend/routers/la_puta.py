@@ -137,14 +137,21 @@ def sacar_carta(datos: TurnoInput):
         accion_requerida = "ELEGIR_VICTIMA"
         resultado_extra = {"opciones": partida['jugadores_lista']}
     elif numero == "3":
-        # ... (Tu lógica de toman todos) ...
+        # Lógica TOMAN TODOS con Cadenas
         conteo_tragos = {j: 0 for j in partida['jugadores_lista']}
+        
+        # Simulamos que CADA jugador toma 1 trago y vemos a quién arrastra
         for iniciador in partida['jugadores_lista']:
+            # Si A toma, ¿quién más toma por culpa de A?
             cadena = calcular_cadena_tragos(iniciador, partida['datos_jugadores'])
             for victima in cadena:
                 conteo_tragos[victima] += 1
-        lista_final = [{"nombre": k, "tragos": v} for k, v in conteo_tragos.items()]
+                
+        # Formateamos para el frontend
+        lista_final = [{"nombre": k, "tragos": v} for k, v in conteo_tragos.items() if v > 0]
+        # Ordenamos: el que más toma arriba
         lista_final.sort(key=lambda x: x['tragos'], reverse=True)
+        
         resultado_extra = {"detalle_toman_todos": lista_final}
     elif numero == "5":
         accion_requerida = "ELEGIR_PUTA"

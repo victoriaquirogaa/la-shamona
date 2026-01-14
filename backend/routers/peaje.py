@@ -1,12 +1,15 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from database import db
-from routers.utils import generar_codigo_sala 
+from .utils import generar_codigo_sala 
 import random
 
 router = APIRouter()
 
-# --- MODELOS ---
+# --- MODELOS (Aquí estaba el problema del 422) ---
+class NuevoPeajeInput(BaseModel):
+    jugadores: list[str]
+
 class JugarTurnoInput(BaseModel):
     id_sala: str
     prediccion: str  # "mayor", "menor", "igual"
@@ -21,9 +24,10 @@ def generar_mazo():
 # --- ENDPOINTS ---
 
 @router.post("/crear")
-def crear_partida(jugadores: list[str]): 
+def crear_partida(datos: NuevoPeajeInput): # <--- Ahora usamos el modelo
     # 1. LIMPIEZA DE NOMBRES
-    jugadores_limpios = [j.strip().title() for j in jugadores]
+    # Accedemos a datos.jugadores en lugar de usar la variable directa
+    jugadores_limpios = [j.strip().title() for j in datos.jugadores]
 
     codigo = generar_codigo_sala()
     mazo = generar_mazo()
@@ -32,9 +36,9 @@ def crear_partida(jugadores: list[str]):
     carta_inicial = mazo.pop()
     
     nueva_partida = {
-        "jugadores": jugadores_limpios, # Guardamos la lista limpia
-        "turno_actual": 0, # Índice del jugador que le toca
-        "posicion": 0,     # Casilla del tablero (0 a 6)
+        "jugadores": jugadores_limpios, 
+        "turno_actual": 0, 
+        "posicion": 0,     
         "carta_visible": carta_inicial,
         "mazo": mazo,
         "estado": "jugando",
@@ -58,7 +62,7 @@ def jugar_turno(datos: JugarTurnoInput):
     
     # 2. PROTECCIÓN ANTI-CRASH
     if not doc.exists:
-        raise HTTPException(status_code=404, detail="Sala no encontrada. Verificá el código exacto (mayúsculas/minúsculas).")
+        raise HTTPException(status_code=404, detail="Sala no encontrada.")
     
     partida = doc.to_dict()
     
@@ -114,17 +118,17 @@ def jugar_turno(datos: JugarTurnoInput):
         accion_extra = "BEBER"
         mensaje = f"¡Error! Salió un {carta_nueva}. Toman un trago."
         
-        # PENALIZACIONES
+        # PENALIZACIONES CRUELES
         if posicion_actual == 6: # Carta final
-            nueva_posicion = 0 # Vuelve al inicio (CRUEL)
+            nueva_posicion = 0 
             mensaje += " ¡Y vuelves al principio!"
             
         elif 3 <= posicion_actual <= 5: # Bloque 2
-            nueva_posicion = max(0, posicion_actual - 1) # Vuelve 1 atrás
+            nueva_posicion = max(0, posicion_actual - 1) 
             mensaje += " Retrocedes un paso."
             
         else: # Bloque 1 (0, 1, 2)
-            nueva_posicion = 0 # Vuelve al inicio
+            nueva_posicion = 0 
             mensaje += " Vuelves a empezar."
 
     # 4. Guardamos cambios

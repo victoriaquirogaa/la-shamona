@@ -110,3 +110,46 @@ def siguiente_pregunta(datos: SiguientePreguntaInput):
         "le_toca_a": jugador_actual,
         "terminado": False
     }
+
+# ... (todo tu código anterior de crear sala y siguiente pregunta sigue igual) ...
+
+# --- ATAJO: MODO RÁPIDO (Para jugar offline sin sala) ---
+from models import JuegoCarta # Asegúrate de tener este import arriba o aquí
+
+@router.get("/{categoria_id}")
+def sacar_pregunta_rapida(categoria_id: str):
+    # 1. Mapeo de seguridad (Frontend -> ID Documento Firebase)
+    mapa = {
+        "polemicas": "polemicas",
+        "profundas": "profundas",
+        "picantes": "picantes", 
+        "toxicos": "toxicos"
+    }
+    
+    # Si piden algo que no existe, error
+    if categoria_id not in mapa:
+         # Fallback: si no está en el mapa, intentamos usar el ID directo
+         # pero por seguridad mejor usar el mapa si puedes.
+         id_doc = categoria_id
+    else:
+         id_doc = mapa[categoria_id]
+
+    # 2. Buscar directo en la colección de preguntas
+    doc_ref = db.collection('categorias_preguntas').document(id_doc)
+    doc = doc_ref.get()
+
+    if not doc.exists:
+        return {"texto": f"Error: No existe el mazo '{id_doc}'", "tipo": "error"}
+
+    data = doc.to_dict()
+    lista = data.get('preguntas', [])
+
+    if not lista:
+        return {"texto": "¡Mazo vacío!", "tipo": "info"}
+
+    # 3. Devolver una al azar
+    import random
+    return {
+        "texto": random.choice(lista),
+        "tipo": categoria_id
+    }

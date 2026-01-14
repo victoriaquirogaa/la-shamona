@@ -39,3 +39,6 @@ firebase-debug.log
 # --- IDEs (Configuraciones de tu editor de texto) ---
 .vscode/
 .idea/
+
+#ANUNCIOS
+CREDENCIALES_REALES_ADMOB.txt
