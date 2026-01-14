@@ -35,15 +35,19 @@ export const Home = ({ navegar }: Props) => {
           </Card>
         </Col>
 
-        {/* 2. MODO ONLINE (Próximamente) */}
+        {/* 2. MODO ONLINE (ACTIVO) */}
         <Col xs={12}>
-          <Card className="bg-dark border-secondary text-secondary" style={{ opacity: 0.7 }}>
-            <Card.Body className="p-4 d-flex align-items-center justify-content-between">
+          <Card 
+            className="border-0 shadow-lg text-white mb-2" 
+            style={{ cursor: 'pointer', background: 'linear-gradient(90deg, #11998e 0%, #38ef7d 100%)' }}
+            onClick={() => navegar('menu-online')}
+          >
+            <Card.Body className="p-5 d-flex align-items-center justify-content-between">
               <div className="text-start">
-                <h3 className="fw-bold mb-0">🌎 MODO ONLINE</h3>
-                <small>Salas multijugador (Pronto)</small>
+                <h2 className="fw-bold mb-0">🌎 MODO ONLINE</h2>
+                <small className="opacity-75">Crea una sala o únete a tus amigos</small>
               </div>
-              <span className="fs-1">🔒</span>
+              <span className="display-4">📶</span>
             </Card.Body>
           </Card>
         </Col>

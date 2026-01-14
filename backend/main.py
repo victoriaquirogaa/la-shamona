@@ -1,14 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 # Importamos las piezas nuevas
-from database import db 
-from routers import yo_nunca
-from routers import la_puta
-from routers import impostor
-from routers import peaje
-from routers import piramide
-from routers import votacion
-from routers import preguntas
+from routers import yo_nunca, votacion, preguntas, la_puta, peaje, piramide, impostor, online # <--- AGREGAR online
 # from routers import admin (cuando lo crees)
 
 app = FastAPI()
@@ -44,6 +37,9 @@ app.include_router(votacion.router, prefix="/juegos/votacion", tags=["Votacion"]
 
 # 7. Juego de Preguntas (/juegos/preguntas)
 app.include_router(preguntas.router, prefix="/juegos/preguntas", tags=["Preguntas"])
+
+# 8. Creador de salas online (/juegos/online)
+app.include_router(online.router, prefix="/juegos/online", tags=["Modo Online"])
 
 # 3. Admin (Futuro)
 # app.include_router(admin.router, prefix="/admin", tags=["Admin"])
