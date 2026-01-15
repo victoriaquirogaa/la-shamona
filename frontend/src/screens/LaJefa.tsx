@@ -1,8 +1,15 @@
-import { useState } from 'react';
+import { useState, ReactNode } from 'react';
 import { Container, Card, Form, Button, Badge, Row, Col, Modal, ListGroup } from 'react-bootstrap';
 import { api } from '../lib/api';
 
 interface Props { volver: () => void; }
+
+// Interfaz para el estado de los mensajes
+interface MensajeEstado {
+  titulo: string;
+  cuerpo: ReactNode; // Esto permite pasar texto O componentes HTML (como la lista de tragos)
+  tipo: 'info' | 'success' | 'warning' | 'danger';
+}
 
 export const LaJefa = ({ volver }: Props) => {
   // --- ESTADOS ---
@@ -17,7 +24,9 @@ export const LaJefa = ({ volver }: Props) => {
 
   // ESTADO RESULTADOS
   const [showResultado, setShowResultado] = useState(false);
-  const [mensajeResultado, setMensajeResultado] = useState<{titulo: string, cuerpo: any, tipo: string}>({ titulo: "", cuerpo: "", tipo: "info" });
+  const [mensajeResultado, setMensajeResultado] = useState<MensajeEstado>({ 
+      titulo: "", cuerpo: "", tipo: "info" 
+  });
 
   // --- LÓGICA LOBBY ---
   const agregarJugador = () => {
@@ -27,111 +36,142 @@ export const LaJefa = ({ volver }: Props) => {
     }
   };
 
-  // Reemplaza esto dentro de LaJefa.tsx
   const iniciar = async () => {
     // 1. Validación visual
     if (jugadores.length < 2) {
-       return alert("¡Faltan jugadores! Escribe el nombre y toca 'AGREGAR' antes de Comenzar.");
+       return alert("¡Faltan jugadores! Agrega al menos 2 nombres.");
     }
 
     try {
-      // 2. Intentamos conectar
-      const data = await api.crearPartidaLaJefa(jugadores);
-      console.log("Respuesta Backend:", data); // Mira la consola (F12) si falla
+      // 2. Intentamos conectar con el Backend
+      // Nota: Asumimos que existe este endpoint para crear partida local gestionada por backend
+      const data = await api.crearPartidaLaJefa(jugadores); 
 
       if (data && data.id_sala) {
         setSala(data.id_sala);
       } else {
-        alert("Error: El servidor respondió, pero no envió la sala. Revisa la terminal de Python.");
+        alert("Error: El servidor no devolvió una ID de sala válida.");
       }
     } catch (error) {
       console.error(error);
-      alert("ERROR DE CONEXIÓN: \n1. Revisa que el backend esté corriendo.\n2. Revisa que hayas agregado 'la_puta' en main.py.\n3. Mira la consola (F12) para más detalles.");
+      alert("ERROR DE CONEXIÓN: Asegúrate de que el backend (main.py) esté corriendo.");
     }
   };
+
   // --- LÓGICA JUEGO ---
   const sacar = async () => {
-    const data = await api.sacarCartaLaJefa(sala!);
-    
-    if (data.terminado) {
-      setMensajeResultado({ titulo: "¡Fin del Mazo!", cuerpo: "Mezclen y vuelvan a jugar.", tipo: "info" });
-      setShowResultado(true);
-    } else {
-      // 1. Manejo de Dedito
-      if (data.accion_requerida === 'INICIAR_DEDITO') {
-          setHayDeditoPendiente(true); 
-          data.accion_requerida = 'NINGUNA'; 
-      }
+    if (!sala) return;
 
-      setCarta(data);
-      
-      // 2. CORRECCIÓN IMPORTANTE AQUÍ:
-      // Primero verificamos si existe la lista "detalle_toman_todos"
-      if (data.datos_extra?.detalle_toman_todos) {
-         const listaVisual = (
-           <ListGroup variant="flush" className="text-start bg-transparent w-100">
-             {data.datos_extra.detalle_toman_todos.map((p: any, idx: number) => (
-               <ListGroup.Item key={idx} className="bg-transparent text-white border-secondary d-flex justify-content-between align-items-center py-2">
-                  <span className="fs-5 fw-bold">{p.nombre}</span>
-                  <Badge bg="danger" pill className="fs-6 shadow-sm">
-                    {p.tragos} {p.tragos === 1 ? 'Trago' : 'Tragos'}
-                  </Badge>
-               </ListGroup.Item>
-             ))}
-           </ListGroup>
-         );
-         setMensajeResultado({ titulo: "🍻 ¡TOMAN TODOS!", cuerpo: listaVisual, tipo: "warning" });
-         setShowResultado(true);
-      }
-      // Si no es lista, vemos si hay un mensaje simple (ej: Regla 1)
-      else if (data.datos_extra?.mensaje_trago) {
-         setMensajeResultado({ titulo: "¡ATENCIÓN!", cuerpo: data.datos_extra.mensaje_trago, tipo: "warning" });
-         setShowResultado(true);
-      }
+    // Si el jugador aprieta "Sacar" y todavía tiene el botón, se lo borramos.
+    if (hayDeditoPendiente) {
+        setHayDeditoPendiente(false); 
+        // Opcional: Avisarle que durmió
+        setMensajeResultado({
+            titulo: "😴 DORMISTE", 
+            cuerpo: "Se te venció el Dedito por no usarlo antes de tu turno.", 
+            tipo: "info"
+        });
+        setShowResultado(true);
+        // Nota: No retornamos, dejamos que siga y saque la carta nueva
+    }
+
+    try {
+        const data = await api.sacarCartaLaJefa(sala);
+        
+        if (data.terminado) {
+          setMensajeResultado({ titulo: "¡Fin del Mazo!", cuerpo: "Mezclen y vuelvan a jugar.", tipo: "info" });
+          setShowResultado(true);
+        } else {
+          // 1. Manejo de Dedito (Si sale la carta 10)
+          if (data.accion_requerida === 'INICIAR_DEDITO') {
+              setHayDeditoPendiente(true); 
+              data.accion_requerida = 'NINGUNA'; // Limpiamos acción para que deje seguir jugando
+          }
+
+          setCarta(data);
+          
+          // 2. LOGICA TOMAN TODOS (Carta 3)
+          // Verificamos si el backend nos mandó la lista detallada de tragos
+          if (data.datos_extra?.detalle_toman_todos) {
+             const listaVisual = (
+               <ListGroup variant="flush" className="text-start bg-transparent w-100">
+                 {data.datos_extra.detalle_toman_todos.map((p: any, idx: number) => (
+                   <ListGroup.Item key={idx} className="bg-transparent text-white border-secondary d-flex justify-content-between align-items-center py-2">
+                      <span className="fs-5 fw-bold">{p.nombre}</span>
+                      <Badge bg="danger" pill className="fs-6 shadow-sm">
+                        {p.tragos} {p.tragos === 1 ? 'Trago' : 'Tragos'}
+                      </Badge>
+                   </ListGroup.Item>
+                 ))}
+               </ListGroup>
+             );
+             setMensajeResultado({ titulo: "🍻 ¡TOMAN TODOS!", cuerpo: listaVisual, tipo: "warning" });
+             setShowResultado(true);
+          }
+          // Si no es lista, vemos si hay un mensaje simple (ej: Regla 1 automática)
+          else if (data.datos_extra?.mensaje_trago) {
+             setMensajeResultado({ titulo: "¡ATENCIÓN!", cuerpo: data.datos_extra.mensaje_trago, tipo: "warning" });
+             setShowResultado(true);
+          }
+        }
+    } catch (error) {
+        console.error("Error al sacar carta:", error);
     }
   };
 
-  // Resolver Carta Normal
+  // Resolver Carta Normal (Elegir víctima o mascota)
   const resolverAccionCarta = async (objetivo: string) => {
     await procesarCastigo(objetivo, carta.accion_requerida === 'ELEGIR_PUTA');
+    // Limpiamos la acción localmente para desbloquear el botón de sacar
     setCarta({ ...carta, accion_requerida: 'NINGUNA' });
   };
 
-  // Resolver Dedito
+  // Resolver Dedito (Modal separado)
   const resolverDedito = async (perdedor: string) => {
     setShowModalDedito(false); 
     setHayDeditoPendiente(false); 
     await procesarCastigo(perdedor, false);
   };
 
-  // Lógica común de castigos
+  // Lógica común de castigos (Llama al backend)
   const procesarCastigo = async (objetivo: string, esMascota: boolean) => {
+    if (!sala) return;
     let res;
-    if (esMascota) {
-      res = await api.asignarPuta(sala!, carta.jugador, objetivo);
-      setMensajeResultado({ titulo: "👠 Nueva Mascota", cuerpo: res.mensaje, tipo: "success" });
-    } else {
-      res = await api.registrarTrago(sala!, objetivo);
-      if (res.toman && res.toman.length > 1) {
-          setMensajeResultado({ 
-            titulo: "⛓️ ¡CADENA DE TRAGOS!", 
-            cuerpo: (
-              <div>
-                <p className="mb-3">Perdió <strong>{objetivo}</strong>, pero arrastra a:</p>
-                <div className="d-flex flex-wrap justify-content-center gap-2">
-                  {res.toman.map((nombre: string, i: number) => (
-                     <Badge key={i} bg="danger" className="p-2 fs-6">{nombre}</Badge>
-                  ))}
-                </div>
-              </div>
-            ), 
-            tipo: "danger" 
-          });
-      } else {
-          setMensajeResultado({ titulo: "🍺 ¡FONDO BLANCO!", cuerpo: `Perdió ${objetivo}.`, tipo: "danger" });
-      }
+    
+    try {
+        if (esMascota) {
+          // Asignar mascota
+          res = await api.asignarPuta(sala, carta.jugador, objetivo);
+          setMensajeResultado({ titulo: "👠 Nueva Mascota", cuerpo: res.mensaje, tipo: "success" });
+        } else {
+          // Registrar Trago (Aquí el backend calcula la cadena de putas)
+          res = await api.registrarTrago(sala, objetivo);
+          
+          if (res.toman && res.toman.length > 1) {
+              // CADENA DE TRAGOS DETECTADA
+              setMensajeResultado({ 
+                titulo: "⛓️ ¡CADENA DE TRAGOS!", 
+                cuerpo: (
+                  <div>
+                    <p className="mb-3">Perdió <strong>{objetivo}</strong>, pero arrastra a:</p>
+                    <div className="d-flex flex-wrap justify-content-center gap-2">
+                      {res.toman.map((nombre: string, i: number) => (
+                          <Badge key={i} bg="danger" className="p-2 fs-6">{nombre}</Badge>
+                      ))}
+                    </div>
+                  </div>
+                ), 
+                tipo: "danger" 
+              });
+          } else {
+              // TRAGO SIMPLE
+              setMensajeResultado({ titulo: "🍺 ¡FONDO BLANCO!", cuerpo: `Perdió ${objetivo}.`, tipo: "danger" });
+          }
+        }
+        setShowResultado(true);
+    } catch (e) {
+        console.error(e);
     }
-    setShowResultado(true);
   }
 
   // --- VISTA 1: LOBBY ---

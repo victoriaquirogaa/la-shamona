@@ -37,7 +37,7 @@ REGLAS_JUEGO = {
     "6":  {"texto": "LIMÓN (El que pierde toma)", "accion": "ELEGIR_VICTIMA"},
     "7":  {"texto": "BARQUITO PERUANO", "accion": "ELEGIR_VICTIMA"},
     "8":  {"texto": "PALITO", "accion": "ELEGIR_VICTIMA"},
-    "10": {"texto": "DEDITO (El último toma)", "accion": "ELEGIR_VICTIMA"},
+    "10": {"texto": "DEDITO (El último toma)", "accion": "ACTIVAR_DEDITO"}, # <--- CAMBIAR ESTO
     "11": {"texto": "¿QUERÉS UN KI?", "accion": "ELEGIR_VICTIMA"},
     "12": {"texto": "DESCANSO (Zafaste)", "accion": "NINGUNA"}
 }
@@ -218,11 +218,42 @@ def pasar_turno(datos: IniciarJuegoInput):
 @router.post("/jugada/toman_todos")
 def toman_todos(datos: IniciarJuegoInput):
     doc_ref = db.collection('salas_online').document(datos.codigo)
+    sala = doc_ref.get().to_dict()
+    mascotas = sala['datos_juego'].get('mascotas', {})
+    jugadores = sala['jugadores']
+    
+    resultados = [] # Lista de diccionarios: {"nombre": "Fran", "tragos": 3}
+    
+    for j in jugadores:
+        tragos = 1 # El trago base por "Toman Todos"
+        
+        # Calculamos cuántos dueños tiene arriba (Cadena ascendente)
+        # Si Fran es dueño de Vicky, y Vicky de Gastón.
+        # Gastón toma: 1 (suyo) + 1 (por Vicky) + 1 (por Fran)
+        
+        actual = j
+        # Mientras 'actual' sea una mascota (esté en las llaves del dict)
+        while actual in mascotas: 
+            dueno = mascotas[actual]
+            tragos += 1
+            actual = dueno # Subimos un nivel para ver si el dueño tiene dueño
+            
+            # (Protección anti-bucle infinito por si A es dueño de B y B de A)
+            if tragos > 20: break 
+            
+        resultados.append({"nombre": j, "tragos": tragos})
+    
+    # Ordenamos: los que más toman primero (para el escracho)
+    resultados.sort(key=lambda x: x['tragos'], reverse=True)
+    
+    # Armamos textos para mostrar
+    lista_texto = [f"{r['nombre']} ({r['tragos']} tragos)" for r in resultados]
+
     doc_ref.update({
         "fase": "RESULTADO",
         "datos_juego.resultado_trago": {
             "culpable": "TODOS",
-            "toman_todos": ["TODOS"],
+            "toman_todos": lista_texto, # Enviamos la lista formateada
             "mensaje": "¡TOMAN TODOS!"
         }
     })

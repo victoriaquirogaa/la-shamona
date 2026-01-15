@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Container, Card, Button, Badge, Modal, Row, Col } from 'react-bootstrap';
 import { api } from '../lib/api';
 
@@ -9,19 +9,43 @@ interface Props {
 
 export const LaJefaOnline = ({ datos, salir }: Props) => {
   const [sala, setSala] = useState<any>(null);
+  
+  // MODALES
   const [showSelector, setShowSelector] = useState(false);
   const [modoSeleccion, setModoSeleccion] = useState<'VICTIMA' | 'MASCOTA'>('VICTIMA');
 
-  // Sincronización (Polling)
+  // ESTADO DEDITO (Local, solo para mí)
+  const [tengoDedito, setTengoDedito] = useState(false);
+  const [showModalDedito, setShowModalDedito] = useState(false);
+
+  // REFERENCIA PARA DETECTAR CAMBIO DE TURNO (Para el vencimiento)
+  const turnoAnterior = useRef<string>("");
+
+  // Sincronización
   useEffect(() => {
     const intervalo = setInterval(async () => {
       try {
         const data = await api.getSalaOnline(datos.codigo);
         setSala(data);
+        
+        // --- LÓGICA DE VENCIMIENTO (DORMILÓN) ---
+        // Si ahora es mi turno, pero antes no lo era...
+        if (data.turno_actual === datos.nombre && turnoAnterior.current !== datos.nombre) {
+             // ... y todavía tengo el dedito guardado
+             setTengoDedito((prev) => {
+                 if (prev) {
+                     alert("😴 ¡DORMISTE! Se te venció el Dedito por no usarlo en la ronda.");
+                     return false; // Se lo quitamos
+                 }
+                 return prev;
+             });
+        }
+        turnoAnterior.current = data.turno_actual;
+
       } catch (e) { console.error("Error sync", e); }
     }, 1000);
     return () => clearInterval(intervalo);
-  }, [datos.codigo]);
+  }, [datos.codigo, datos.nombre]);
 
   if (!sala || !sala.datos_juego) return <div className="text-white text-center mt-5">Cargando mesa...</div>;
 
@@ -30,7 +54,7 @@ export const LaJefaOnline = ({ datos, salir }: Props) => {
   const carta = sala.datos_juego.carta_actual;
   const resultado = sala.datos_juego.resultado_trago;
 
-  // --- ACCIONES DE BOTONES ---
+  // --- ACCIONES ---
   const handleSacar = () => api.sacarCartaOnline(datos.codigo);
   const handlePasar = () => api.pasarTurnoOnline(datos.codigo);
   
@@ -41,7 +65,7 @@ export const LaJefaOnline = ({ datos, salir }: Props) => {
           case 'AUTO_TRAGO': // Carta 1
               await api.reportarTragoOnline(datos.codigo, datos.nombre);
               break;
-          case 'ELEGIR_VICTIMA': // Cartas 2, 4, 6, 7, 8, 10, 11
+          case 'ELEGIR_VICTIMA': // Cartas 2, 4, 6, 7, 8, 11
               setModoSeleccion('VICTIMA');
               setShowSelector(true);
               break;
@@ -52,11 +76,16 @@ export const LaJefaOnline = ({ datos, salir }: Props) => {
           case 'TOMAN_TODOS': // Carta 3
               await api.tomanTodosOnline(datos.codigo);
               break;
+          case 'ACTIVAR_DEDITO': // Carta 10
+              setTengoDedito(true); // Me guardo el poder
+              await api.pasarTurnoOnline(datos.codigo); // El juego sigue para los demás
+              break;
           default: // Carta 12
               handlePasar();
       }
   };
 
+  // Confirmar selección (Víctima normal o Mascota)
   const confirmarSeleccion = async (jugador: string) => {
       if (modoSeleccion === 'VICTIMA') {
           await api.reportarTragoOnline(datos.codigo, jugador);
@@ -64,6 +93,14 @@ export const LaJefaOnline = ({ datos, salir }: Props) => {
           await api.asignarPutaOnline(datos.codigo, datos.nombre, jugador);
       }
       setShowSelector(false);
+  };
+
+  // Usar el Dedito (Interrumpe el juego)
+  const usarDedito = async (perdedor: string) => {
+      setTengoDedito(false); // Gasto el poder
+      setShowModalDedito(false);
+      // Reporto el trago (esto interrumpe a cualquiera e inicia el escracho)
+      await api.reportarTragoOnline(datos.codigo, perdedor);
   };
 
   return (
@@ -99,7 +136,7 @@ export const LaJefaOnline = ({ datos, salir }: Props) => {
               </Card>
           )}
 
-          {/* FASE 2: MOSTRAR CARTA Y ACCIÓN */}
+          {/* FASE 2: MOSTRAR CARTA */}
           {fase === 'ACCION' && carta && (
               <div className="text-center">
                   <Card className="mx-auto shadow-lg border-0 mb-4 bg-white text-dark" style={{ width: '260px', height: '380px' }}>
@@ -108,13 +145,10 @@ export const LaJefaOnline = ({ datos, salir }: Props) => {
                               <h1 className="fw-bold m-0">{carta.numero}</h1>
                               <h1 className="fw-bold m-0">{['Oro','Copa'].includes(carta.palo) ? '🪙' : '⚔️'}</h1>
                           </div>
-                          
-                          {/* ACÁ SE MUESTRA EL NOMBRE DEL JUEGO */}
                           <div className="my-3">
                               <h6 className="text-danger fw-bold text-uppercase mb-1">JUEGO</h6>
                               <h3 className="fw-black lh-sm">{carta.texto}</h3>
                           </div>
-
                           <small className="text-muted fw-bold align-self-end">{carta.palo}</small>
                       </Card.Body>
                   </Card>
@@ -125,6 +159,7 @@ export const LaJefaOnline = ({ datos, salir }: Props) => {
                           {carta.accion === 'ASIGNAR_MASCOTA' && "🐕 ELEGIR PUTA"}
                           {carta.accion === 'AUTO_TRAGO' && "🍺 TOMO YO"}
                           {carta.accion === 'TOMAN_TODOS' && "🌍 TOMAN TODOS"}
+                          {carta.accion === 'ACTIVAR_DEDITO' && "👆 GUARDAR DEDITO"}
                           {carta.accion === 'NINGUNA' && "✅ PASAR"}
                       </Button>
                   ) : (
@@ -133,19 +168,27 @@ export const LaJefaOnline = ({ datos, salir }: Props) => {
               </div>
           )}
 
-          {/* FASE 3: RESULTADO (Quién toma + Sus putas) */}
+          {/* FASE 3: RESULTADO */}
           {fase === 'RESULTADO' && resultado && (
               <div className="position-absolute top-0 start-0 w-100 h-100 bg-danger d-flex flex-column align-items-center justify-content-center z-3">
                   <div className="text-center p-4">
                       <div className="display-1 mb-2">🍻</div>
                       <h1 className="display-4 fw-black text-white mb-4">¡FONDO BLANCO!</h1>
-                      
                       <div className="bg-white text-danger rounded p-4 shadow-lg mb-4">
                           <h3 className="fw-bold m-0">{resultado.mensaje}</h3>
                       </div>
+                      
+                      {/* Lista detallada Toman Todos */}
+                      {resultado.culpable === 'TODOS' && resultado.toman_todos && (
+                          <div className="text-white border border-white rounded p-3 mb-4 text-start d-inline-block">
+                             {resultado.toman_todos.map((txt: string, i: number) => (
+                                <div key={i} className="border-bottom border-white-50 mb-1 pb-1">{txt}</div>
+                             ))}
+                          </div>
+                      )}
 
-                      {/* LISTA DE LA CADENA DE PUTAS */}
-                      {resultado.toman_todos && resultado.toman_todos.length > 1 && (
+                      {/* Cadena de mascotas */}
+                      {resultado.culpable !== 'TODOS' && resultado.toman_todos && resultado.toman_todos.length > 1 && (
                            <div className="text-white border border-white rounded p-3 mb-4">
                                <h5>⛓️ Cadena de Mascotas:</h5>
                                <p className="fs-5 m-0 fw-bold">{resultado.toman_todos.join(" ➔ ")}</p>
@@ -157,12 +200,25 @@ export const LaJefaOnline = ({ datos, salir }: Props) => {
                               SIGUIENTE RONDA ➔
                           </Button>
                       )}
+                      {!esMiTurno && <p className="text-white">Esperando al Host...</p>}
                   </div>
               </div>
           )}
       </div>
 
-      {/* MODAL SELECTOR */}
+      {/* === BOTÓN FLOTANTE DEDITO (SOLO PARA MI) === */}
+      {tengoDedito && (
+        <Button 
+          variant="warning" 
+          className="position-fixed bottom-0 end-0 m-4 rounded-circle shadow-lg border-4 border-white fw-bold fs-1"
+          style={{width: '80px', height: '80px', zIndex: 1050}}
+          onClick={() => setShowModalDedito(true)}
+        >
+          👆
+        </Button>
+      )}
+
+      {/* MODAL SELECTOR GENERAL */}
       <Modal show={showSelector} onHide={() => setShowSelector(false)} centered contentClassName="bg-dark text-white border-danger">
           <Modal.Header closeButton closeVariant="white">
               <Modal.Title className="fw-bold text-danger">
@@ -186,6 +242,26 @@ export const LaJefaOnline = ({ datos, salir }: Props) => {
               </Row>
           </Modal.Body>
       </Modal>
+
+      {/* MODAL ESPECIAL DEDITO */}
+      <Modal show={showModalDedito} onHide={() => setShowModalDedito(false)} centered contentClassName="bg-dark text-white border-warning">
+          <Modal.Header closeButton closeVariant="white">
+              <Modal.Title className="fw-bold text-warning">👆 ¡A ACUSAR!</Modal.Title>
+          </Modal.Header>
+          <Modal.Body>
+              <p className="text-center text-muted">¿Quién fue el último en poner el dedo?</p>
+              <Row className="g-2">
+                  {sala.jugadores.map((j: string) => (
+                      <Col xs={6} key={j}>
+                          <Button variant="light" className="w-100 py-3 fw-bold" onClick={() => usarDedito(j)}>
+                              {j}
+                          </Button>
+                      </Col>
+                  ))}
+              </Row>
+          </Modal.Body>
+      </Modal>
+
     </Container>
   );
 };

@@ -98,8 +98,7 @@ def sacar_carta(datos: TurnoInput):
     
     # --- PROTECCIÓN ANTI-CRASH ---
     if not doc.exists:
-        # El 404 es el código estándar de "No encontrado"
-        raise HTTPException(status_code=404, detail="No existe una partida con ese código. Revisá mayúsculas/minúsculas.")
+        raise HTTPException(status_code=404, detail="No existe una partida con ese código.")
         
     partida = doc.to_dict()
     
@@ -109,13 +108,11 @@ def sacar_carta(datos: TurnoInput):
     carta = partida['mazo'].pop(0)
     jugador_actual = partida['jugadores_lista'][partida['turno_index']]
     
-    # ... (El resto del código sigue igual hasta el return) ...
-    # Copia el resto de tu lógica de reglas aquí abajo
-    
     # Analizar número
     numero = carta.split(" ")[0]
     regla = REGLAS.get(numero, "Toma un trago")
     
+    # Avanzar turno
     nuevo_index = (partida['turno_index'] + 1) % len(partida['jugadores_lista'])
     
     doc_ref.update({
@@ -124,15 +121,73 @@ def sacar_carta(datos: TurnoInput):
         "turno_index": nuevo_index
     })
     
-    # ... (Copiar lógica de accion_requerida que hicimos antes) ...
-    # Si quieres te la pego completa de nuevo para que no te líes
-    
+    # --- LÓGICA DE RESPUESTA ---
     accion_requerida = "NINGUNA"
     resultado_extra = {}
 
     if numero == "1":
+        # CORRECCIÓN AQUÍ:
+        # 1. Usamos jugador_actual (porque datos.victima no existe aquí)
         afectados = calcular_cadena_tragos(jugador_actual, partida['datos_jugadores'])
-        resultado_extra = {"mensaje_trago": f"Toma {jugador_actual} y sus putas", "toman_lista": afectados}
+        
+        mensaje_trago = f"¡Toma {jugador_actual}!"
+        
+        # 2. Usamos la variable correcta 'afectados' (no lista_toman)
+        if len(afectados) > 1: 
+            solo_putas = afectados[1:] 
+            nombres_putas = ", ".join(solo_putas)
+            mensaje_trago = f"¡Toma {jugador_actual} y sus putas: {nombres_putas}!"
+        
+        # 3. Guardamos el mensaje en resultado_extra
+        resultado_extra = {"mensaje_trago": mensaje_trago}
+
+    elif numero == "2":
+        accion_requerida = "ELEGIR_VICTIMA"
+        resultado_extra = {"opciones": partida['jugadores_lista']}
+        
+    elif numero == "3":
+        # Lógica TOMAN TODOS
+        conteo_tragos = {j: 0 for j in partida['jugadores_lista']}
+        
+        for iniciador in partida['jugadores_lista']:
+            cadena = calcular_cadena_tragos(iniciador, partida['datos_jugadores'])
+            for victima in cadena:
+                conteo_tragos[victima] += 1
+                
+        lista_final = [{"nombre": k, "tragos": v} for k, v in conteo_tragos.items() if v > 0]
+        lista_final.sort(key=lambda x: x['tragos'], reverse=True)
+        
+        resultado_extra = {"detalle_toman_todos": lista_final}
+        
+    elif numero == "5":
+        accion_requerida = "ELEGIR_PUTA"
+        resultado_extra = {"opciones": [j for j in partida['jugadores_lista'] if j != jugador_actual]}
+        
+    elif numero == "10":
+        accion_requerida = "INICIAR_DEDITO"
+        
+    elif numero in ["4", "6", "7", "8", "9", "11"]:
+        accion_requerida = "ELEGIR_VICTIMA" # Unifiqué nombres (antes tenías ELEGIR_PERDEDOR)
+        resultado_extra = {"opciones": partida['jugadores_lista']}
+    
+    return {
+        "carta": carta,
+        "jugador": jugador_actual,
+        "regla": regla,
+        "accion_requerida": accion_requerida,
+        "datos_extra": resultado_extra 
+    }
+
+    if numero == "1":
+        afectados = calcular_cadena_tragos(jugador_actual, partida['datos_jugadores'])
+        mensaje = f"¡Toma {datos.victima}!"
+        if len(lista_toman) > 1:
+            # lista_toman tiene: [Dueño, Puta1, Puta2...]
+            # Separamos las putas para mostrarlas
+            solo_putas = lista_toman[1:] 
+            nombres_putas = ", ".join(solo_putas) # Une los nombres con comas
+            
+            mensaje = f"¡Toma {datos.victima} y sus putas: {nombres_putas}!"
     elif numero == "2":
         accion_requerida = "ELEGIR_VICTIMA"
         resultado_extra = {"opciones": partida['jugadores_lista']}
