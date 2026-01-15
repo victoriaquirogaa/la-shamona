@@ -7,7 +7,8 @@ interface Props {
 
 export const MenuOffline = ({ jugar, volver }: Props) => {
   return (
-    <Container className="min-vh-100 py-4" data-bs-theme="dark">
+    <Container className="min-vh-100 py-4 bg-dark text-white" // <--- AGREGAR bg-dark y text-whitedata-bs-theme="dark"
+    >
       <div className="d-flex align-items-center mb-4">
         <Button variant="outline-light" className="me-3 rounded-circle" onClick={volver}>🡠</Button>
         <h2 className="fw-bold m-0">Juegos Offline</h2>

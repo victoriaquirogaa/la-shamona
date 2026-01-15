@@ -24,26 +24,31 @@ export const api = {
   jugarTurnoPeaje: async (id_sala: string, prediccion: string) => (await fetch(`${API_URL}/juegos/peaje/jugar`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ id_sala, prediccion }) })).json(),
 
   // Online
-  crearSalaOnline: async (nombreHost: string) => 
-    (await fetch(`${API_URL}/juegos/online/crear`, { 
+  // --- ONLINE ---
+  crearSalaOnline: async (nombreHost: string) => (await fetch(`${API_URL}/juegos/online/crear`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ nombre_host: nombreHost }) })).json(),
+  unirseSalaOnline: async (codigo: string, nombreJugador: string) => (await fetch(`${API_URL}/juegos/online/unirse`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ codigo, nombre_jugador: nombreJugador }) })).json(),
+  getSalaOnline: async (codigo: string) => (await fetch(`${API_URL}/juegos/online/estado/${codigo}`)).json(),
+  iniciarJuegoOnline: async (codigo: string, juego: string) => (await fetch(`${API_URL}/juegos/online/iniciar`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ codigo, juego }) })).json(),
+
+  // --- JUGABILIDAD ONLINE ---
+  sacarCartaOnline: async (codigo: string) => (await fetch(`${API_URL}/juegos/online/jugada/sacar`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ codigo, juego: 'la-jefa' }) })).json(),
+  
+  // EL BOTÓN (Acusar a alguien)
+  reportarTragoOnline: async (codigo: string, victima: string) => (await fetch(`${API_URL}/juegos/online/jugada/reportar`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ codigo, victima }) })).json(),
+  
+  // SIGUIENTE (Limpiar pantalla y pasar turno)
+  pasarTurnoOnline: async (codigo: string) => (await fetch(`${API_URL}/juegos/online/jugada/pasar`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ codigo, juego: 'la-jefa' }) })).json(),
+  asignarPutaOnline: async (codigo: string, dueno: string, esclavo: string) => 
+    (await fetch(`${API_URL}/juegos/online/jugada/asignar_puta`, { 
       method: 'POST', 
       headers: {'Content-Type': 'application/json'}, 
-      body: JSON.stringify({ nombre_host: nombreHost }) 
+      body: JSON.stringify({ codigo, dueno, esclavo }) 
     })).json(),
 
-  unirseSalaOnline: async (codigo: string, nombreJugador: string) => 
-    (await fetch(`${API_URL}/juegos/online/unirse`, { 
+  tomanTodosOnline: async (codigo: string) => 
+    (await fetch(`${API_URL}/juegos/online/jugada/toman_todos`, { 
       method: 'POST', 
       headers: {'Content-Type': 'application/json'}, 
-      body: JSON.stringify({ codigo, nombre_jugador: nombreJugador }) 
-    })).json(),
-
-    getSalaOnline: async (codigo: string) => (await fetch(`${API_URL}/juegos/online/estado/${codigo}`)).json(),
-
-    iniciarJuegoOnline: async (codigo: string, juego: string) => 
-    (await fetch(`${API_URL}/juegos/online/iniciar`, { 
-      method: 'POST', 
-      headers: {'Content-Type': 'application/json'}, 
-      body: JSON.stringify({ codigo, juego }) 
+      body: JSON.stringify({ codigo, juego: 'la-jefa' }) 
     })).json(),
 };
