@@ -1,0 +1,15 @@
+/* src/App.css */
+body {
+  background-color: #212529; /* Color oscuro de Bootstrap */
+  color: white;
+}
+
+/* Animación de entrada suave */
+.animate-in {
+  animation: fadeIn 0.5s ease-in;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}

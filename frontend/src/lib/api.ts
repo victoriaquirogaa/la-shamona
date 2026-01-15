@@ -51,4 +51,33 @@ export const api = {
       headers: {'Content-Type': 'application/json'}, 
       body: JSON.stringify({ codigo, juego: 'la-jefa' }) 
     })).json(),
+
+  // 1. OBTENER LISTA DE CATEGORÍAS
+  getCategoriasImpostor: async () => {
+    try {
+        const res = await fetch(`${API_URL}/impostor/categorias`);
+        if (!res.ok) return [];
+        return await res.json();
+    } catch (e) {
+        return [];
+    }
+  },
+
+  // 2. CREAR PARTIDA LOCAL (Ahora acepta categoriaId opcional)
+  crearPartidaImpostorLocal: async (jugadores: string[], categoriaId?: string) => {
+    const deviceId = localStorage.getItem('device_id') || 'browser-client'; 
+
+    const response = await fetch(`${API_URL}/impostor/crear-local`, { 
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ 
+          jugadores, 
+          categoria_id: categoriaId || null, // <--- ACÁ MANDAMOS LA SELECCIÓN
+          device_id: deviceId 
+      })
+    });
+    
+    if (!response.ok) throw new Error("Error al repartir cartas");
+    return await response.json();
+  }
 };
