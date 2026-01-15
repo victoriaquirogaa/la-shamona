@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
 import { Container, Row, Col, Card, Button, Form, Alert, Badge } from 'react-bootstrap';
+import Swal from 'sweetalert2'; // <--- 1. IMPORTAMOS LA LIBRERÍA
 import { api } from '../lib/api';
 
 interface Props {
   volver: () => void;
-  onJuegoIniciado: (juego: string, codigoSala: string, soyHost: boolean, miNombre: string) => void; // <--- Nueva función para cambiar de pantalla
+  onJuegoIniciado: (juego: string, codigoSala: string, soyHost: boolean, miNombre: string) => void; 
 }
 
 export const MenuOnline = ({ volver, onJuegoIniciado }: Props) => {
@@ -23,14 +24,11 @@ export const MenuOnline = ({ volver, onJuegoIniciado }: Props) => {
         try {
           const data = await api.getSalaOnline(salaActiva.codigo);
           
-          // 1. Actualizamos lista de jugadores
           if (data && data.jugadores) {
             setSalaActiva(prev => prev ? { ...prev, jugadores: data.jugadores, juego_actual: data.juego_actual } : null);
           }
 
-          // 2. DETECTOR DE INICIO DE JUEGO (¡La Magia!)
           if (data && data.juego_actual) {
-             // ¡El host inició el juego! Nos vamos todos.
              const soyHost = data.jugadores[0] === nombre;
              onJuegoIniciado(data.juego_actual, salaActiva.codigo, soyHost, nombre);
           }
@@ -39,35 +37,62 @@ export const MenuOnline = ({ volver, onJuegoIniciado }: Props) => {
       }, 2000);
     }
     return () => clearInterval(intervalo);
-  }, [salaActiva, nombre]); // Agregamos 'nombre' a las dependencias
+  }, [salaActiva, nombre, onJuegoIniciado]); // Agregué onJuegoIniciado a dependencias por buenas prácticas
 
-  // --- FUNCIONES ---
+  // --- FUNCIONES MEJORADAS CON SWEETALERT ---
+
+  // Función auxiliar para mostrar alertas oscuras
+  const mostrarAlerta = (icono: 'error' | 'warning' | 'success', titulo: string, texto: string) => {
+      Swal.fire({
+          icon: icono,
+          title: titulo,
+          text: texto,
+          background: '#212529',  // Fondo oscuro
+          color: '#fff',          // Texto blanco
+          confirmButtonColor: '#dc3545', // Rojo Bootstrap
+          confirmButtonText: 'Entendido',
+          backdrop: `rgba(0,0,0,0.8)` // Fondo borroso oscuro
+      });
+  }
+
   const handleCrear = async () => {
-    if (!nombre.trim()) return alert("¡Pone tu nombre primero!");
+    if (!nombre.trim()) return mostrarAlerta('warning', '¡Falta el nombre!', 'Ponete un nombre para que sepan quién sos.');
+    
     setLoading(true);
     try {
         const data = await api.crearSalaOnline(nombre);
         if (data.codigo_sala) setSalaActiva({ codigo: data.codigo_sala, jugadores: data.jugadores });
-    } catch (e) { alert("Error al crear sala."); }
+    } catch (e) { 
+        mostrarAlerta('error', 'Error de conexión', 'No pudimos crear la sala. Revisá si el servidor está prendido.');
+    }
     setLoading(false);
   };
 
   const handleUnirse = async () => {
-    if (!nombre.trim()) return alert("¡Pone tu nombre primero!");
-    if (!codigoSala.trim()) return alert("¡Falta código!");
+    if (!nombre.trim()) return mostrarAlerta('warning', '¡Falta el nombre!', 'Ponete un nombre antes de entrar.');
+    if (!codigoSala.trim()) return mostrarAlerta('warning', '¡Falta el código!', 'Pedile el código al Host.');
+    
     setLoading(true);
     try {
         const data = await api.unirseSalaOnline(codigoSala, nombre);
-        if (data.detail) alert(data.detail);
-        else if (data.codigo_sala) setSalaActiva({ codigo: data.codigo_sala, jugadores: data.jugadores });
-    } catch (e) { alert("Error al unirse."); }
+        
+        // Si el backend devuelve un error controlado (ej: "Sala no existe")
+        if (data.detail) {
+            mostrarAlerta('error', '¡Sala no encontrada! 🕵️‍♂️', 'Revisá bien el código, capaz le pifiaste a una letra o la sala cerró.');
+        }
+        else if (data.codigo_sala) {
+            // ¡ÉXITO!
+            setSalaActiva({ codigo: data.codigo_sala, jugadores: data.jugadores });
+        }
+    } catch (e) { 
+        mostrarAlerta('error', 'Error Fatal', 'No pudimos conectar con el servidor.');
+    }
     setLoading(false);
   };
 
   const iniciarJuego = async (juego: string) => {
       if (!salaActiva) return;
       await api.iniciarJuegoOnline(salaActiva.codigo, juego);
-      // El useEffect de arriba se encargará de redirigirnos cuando detecte el cambio en la BD
   };
 
   // --- VISTA: LOBBY DE ESPERA ---
@@ -117,7 +142,7 @@ export const MenuOnline = ({ volver, onJuegoIniciado }: Props) => {
       );
   }
 
-  // --- VISTA: LOGIN (Igual que antes) ---
+  // --- VISTA: LOGIN ---
   return (
     <Container className="min-vh-100 py-4 d-flex flex-column bg-dark" data-bs-theme="dark">
       <div className="d-flex align-items-center mb-5">
