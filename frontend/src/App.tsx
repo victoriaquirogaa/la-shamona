@@ -6,8 +6,12 @@ import { LaJefa } from './screens/LaJefa';
 import { Peaje } from './screens/Peaje';
 import { MenuOnline } from './screens/MenuOnline'; // <--- NUEVO IMPORT
 import { LaJefaOnline } from './screens/LaJefaOnline';
+import Bebidas from './screens/Bebidas';
+
 
 function App() {
+  const [drinks, ] = useState([]);
+
   interface DatosOnline {
     juego: string;
     codigo: string;
@@ -41,6 +45,10 @@ function App() {
       }} 
     />;
   }
+if (vista === 'bebidas') {
+  return <Bebidas volver={() => setVista('home')} />;
+}
+
 
   // 4. PANTALLA DE JUEGO ONLINE (Placeholder por ahora)
   // B. Juego Online Activo (Lógica Real)

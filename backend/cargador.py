@@ -34,3 +34,6 @@ ref_hot.update({
     "frases": ArrayUnion(frases_hot)
 })
 print(f"🔥 Se agregaron {len(frases_hot)} frases al mazo HOT (Premium).")
+
+#3. cargar bebidas
+
