@@ -1,71 +1,87 @@
-import { Container, Row, Col, Card } from 'react-bootstrap';
+import { useState } from 'react';
+import { Container, Button, Badge, Modal, Form } from 'react-bootstrap';
+import { useAuth } from '../context/AuthContext'; 
 
 interface Props {
-  navegar: (ruta: string) => void;
+    irA: (pantalla: string) => void; 
 }
 
-export const Home = ({ navegar }: Props) => {
+export const Home = ({ irA }: Props) => {
+  const { user, settings, updateSettings, logout } = useAuth();
+  const [showConfig, setShowConfig] = useState(false);
+
   return (
-    <Container className="d-flex flex-column justify-content-center align-items-center min-vh-100 text-center bg-dark text-white" data-bs-theme="dark">
-      <h1 className="display-1 fw-black mb-2" style={{ 
-        background: '-webkit-linear-gradient(45deg, #ff00cc, #3333ff)', 
-        WebkitBackgroundClip: 'text', 
-        WebkitTextFillColor: 'transparent' 
-      }}>
-        EL VIAJERO
-      </h1>
-      <p className="text-muted mb-5 fs-4">Tu compañero de joda</p>
-
-      <Row className="g-4 w-100 justify-content-center" style={{ maxWidth: '600px' }}>
+    <Container className="min-vh-100 py-4 d-flex flex-column bg-dark text-white position-relative">
+      
+      {/* HEADER */}
+      <div className="d-flex justify-content-between align-items-center mb-5">
+        <div>
+            <h3 className="fw-black text-warning m-0 fst-italic display-6">EL VIAJERO</h3>
+            <small className="text-muted">Tu compañero de gira 🚌</small>
+        </div>
         
-        {/* 1. MODO PREVIA (OFFLINE) */}
-        <Col xs={12}>
-          <Card 
-            className="border-0 shadow-lg text-white mb-2" 
-            style={{ cursor: 'pointer', background: 'linear-gradient(90deg, #6a11cb 0%, #2575fc 100%)' }}
-            onClick={() => navegar('menu-offline')}
-          >
-            <Card.Body className="p-5 d-flex align-items-center justify-content-between">
-              <div className="text-start">
-                <h2 className="fw-bold mb-0">🍺 MODO PREVIA</h2>
-                <small className="opacity-75">Juegos Offline (Yo Nunca, La Jefa...)</small>
-              </div>
-              <span className="display-4">🚀</span>
-            </Card.Body>
-          </Card>
-        </Col>
+        {/* PERFIL */}
+        <div 
+            className="d-flex align-items-center bg-secondary bg-opacity-25 rounded-pill ps-3 pe-1 py-1 border border-secondary" 
+            style={{cursor: 'pointer'}}
+            onClick={() => setShowConfig(true)}
+        >
+            <span className="fw-bold me-2 small">{user?.nombre}</span>
+            <div className="bg-dark rounded-circle overflow-hidden border border-white d-flex align-items-center justify-content-center" style={{width: '40px', height: '40px'}}>
+                {user?.avatar?.startsWith('http') ? (
+                    <img src={user.avatar} alt="User" style={{width: '100%', height: '100%', objectFit: 'cover'}} />
+                ) : (
+                    <span style={{fontSize: '1.2rem'}}>{user?.avatar || '😎'}</span>
+                )}
+            </div>
+        </div>
+      </div>
 
-        {/* 2. MODO ONLINE (ACTIVO) */}
-        <Col xs={12}>
-          <Card 
-            className="border-0 shadow-lg text-white mb-2" 
-            style={{ cursor: 'pointer', background: 'linear-gradient(90deg, #11998e 0%, #38ef7d 100%)' }}
-            onClick={() => navegar('menu-online')}
-          >
-            <Card.Body className="p-5 d-flex align-items-center justify-content-between">
-              <div className="text-start">
-                <h2 className="fw-bold mb-0">🌎 MODO ONLINE</h2>
-                <small className="opacity-75">Crea una sala o únete a tus amigos</small>
-              </div>
-              <span className="display-4">📶</span>
-            </Card.Body>
-          </Card>
-        </Col>
+      {/* BOTONES DE NAVEGACIÓN */}
+      <div className="flex-grow-1 d-flex flex-column justify-content-center align-items-center gap-4">
+        
+        {/* BOTÓN OFFLINE -> Manda al App.tsx la orden 'menu-offline' */}
+        <Button 
+            variant="outline-light" size="lg" className="py-4 w-100 fw-bold border-2" style={{maxWidth: '350px'}} 
+            onClick={() => irA('menu-offline')} 
+        >
+            📱 JUEGOS OFFLINE
+            <div className="small fw-normal text-muted">Para jugar acá y ahora</div>
+        </Button>
+        
+        {/* BOTÓN ONLINE -> Manda al App.tsx la orden 'menu-online' */}
+        <Button 
+            variant="warning" size="lg" className="py-4 w-100 fw-bold shadow-lg text-dark" style={{maxWidth: '350px'}} 
+            onClick={() => irA('menu-online')}
+        >
+            🌎 JUGAR ONLINE
+            <Badge bg="danger" text="white" className="ms-2 small">Nuevo</Badge>
+            <div className="small fw-normal opacity-75">Conectar con amigos lejos</div>
+        </Button>
 
-        {/* 3. TRAGOS (Próximamente) */}
-        <Col xs={12}>
-          <Card className="bg-dark border-secondary text-secondary" style={{ opacity: 0.7 }}>
-            <Card.Body className="p-4 d-flex align-items-center justify-content-between">
-              <div className="text-start">
-                <h3 className="fw-bold mb-0">🍹 TRAGOS</h3>
-                <small>Recetas y coctelería (Pronto)</small>
-              </div>
-              <span className="fs-1">🔒</span>
-            </Card.Body>
-          </Card>
-        </Col>
+        {/* TRAGOS (Deshabilitado por ahora) */}
+        <Button variant="secondary" size="lg" className="py-4 w-100 fw-bold opacity-50" style={{maxWidth: '350px'}} disabled>
+            🍹 RECETAS DE TRAGOS
+            <div className="small fw-normal opacity-75">Próximamente...</div>
+        </Button>
+      </div>
+      
+      <p className="text-center text-muted small mt-4">v2.3 - El Viajero</p>
 
-      </Row>
+      {/* MODAL CONFIGURACIÓN */}
+      <Modal show={showConfig} onHide={() => setShowConfig(false)} centered contentClassName="bg-dark text-white border-secondary">
+        <Modal.Header closeButton closeVariant="white"><Modal.Title>Perfil</Modal.Title></Modal.Header>
+        <Modal.Body>
+            <div className="text-center mb-4">
+                <h3>{user?.nombre}</h3>
+                <Button variant="outline-danger" size="sm" onClick={logout}>Cerrar Sesión</Button>
+            </div>
+            <Form.Group className="mb-3">
+                <Form.Label>🔊 Volumen ({settings.volumen}%)</Form.Label>
+                <Form.Range value={settings.volumen} onChange={(e) => updateSettings({ volumen: parseInt(e.target.value) })} />
+            </Form.Group>
+        </Modal.Body>
+      </Modal>
     </Container>
   );
 };

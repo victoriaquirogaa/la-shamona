@@ -24,7 +24,7 @@ app.include_router(yo_nunca.router, prefix="/juegos/yo-nunca", tags=["Yo Nunca"]
 app.include_router(la_puta.router, prefix="/juegos/la-puta", tags=["La Puta"])
 
 # 3. Juego El impostor (Rutas: /juegos/impostor)
-app.include_router(impostor.router, prefix="/juegos/impostor", tags=["Impostor"])
+app.include_router(impostor.router, prefix="/impostor", tags=["impostor"]) # <--- 2. ENCHUFAR
 
 # 4. Juego Peaje (Rutas: /juegos/peaje)
 app.include_router(peaje.router, prefix="/juegos/peaje", tags=["Peaje"])

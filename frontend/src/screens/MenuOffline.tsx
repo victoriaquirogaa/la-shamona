@@ -1,73 +1,87 @@
-import { Container, Row, Col, Card, Button } from 'react-bootstrap';
+import { useState } from 'react';
+import { Container, Button } from 'react-bootstrap';
 
 interface Props {
-  jugar: (juego: string) => void;
+  irA: (pantalla: string) => void;
   volver: () => void;
 }
 
-export const MenuOffline = ({ jugar, volver }: Props) => {
+export const MenuOffline = ({ irA, volver }: Props) => {
+  // Estado para saber si mostramos el menú principal o las opciones de votación
+  const [modoVotacion, setModoVotacion] = useState(false);
+
   return (
-    <Container className="min-vh-100 py-4 bg-dark text-white" // <--- AGREGAR bg-dark y text-whitedata-bs-theme="dark"
-    >
+    <Container className="min-vh-100 py-4 d-flex flex-column bg-dark text-white" data-bs-theme="dark">
+      {/* HEADER */}
       <div className="d-flex align-items-center mb-4">
         <Button variant="outline-light" className="me-3 rounded-circle" onClick={volver}>🡠</Button>
-        <h2 className="fw-bold m-0">Juegos Offline</h2>
+        <h2 className="fw-bold m-0 text-white">Juegos Offline</h2>
       </div>
 
-      <Row className="g-3">
-        {/* YO NUNCA */}
-        <Col xs={6} md={6}>
-          <Card className="h-100 bg-dark text-white border-0 shadow-sm" onClick={() => jugar('yo-nunca')} style={{cursor:'pointer'}}>
-            <Card.Body className="d-flex flex-column justify-content-center text-center p-4">
-              <span className="display-4 mb-2">🍺</span>
-              <h5 className="fw-bold">Yo Nunca</h5>
-            </Card.Body>
-          </Card>
-        </Col>
+      <div className="flex-grow-1 d-flex flex-column gap-3 align-items-center">
+        
+        {/* --- LISTA PRINCIPAL --- */}
+        {!modoVotacion ? (
+            <>
+                {/* 1. LA JEFA */}
+                <Button variant="danger" size="lg" className="w-100 py-3 fw-bold shadow text-start ps-4" style={{maxWidth: '400px'}} 
+                    onClick={() => irA('lajefa')}>
+                    👠 LA JEFA
+                </Button>
 
-        {/* LA JEFA */}
-        <Col xs={6} md={6}>
-          <Card className="h-100 bg-dark text-white border-0 shadow-sm" onClick={() => jugar('la-jefa')} style={{cursor:'pointer'}}>
-            <Card.Body className="d-flex flex-column justify-content-center text-center p-4">
-              <span className="display-4 mb-2">👠</span>
-              <h5 className="fw-bold">La Jefa</h5>
-            </Card.Body>
-          </Card>
-        </Col>
+                {/* 2. PEAJE */}
+                <Button variant="warning" size="lg" className="w-100 py-3 fw-bold shadow text-dark text-start ps-4" style={{maxWidth: '400px'}} 
+                    onClick={() => irA('peaje')}>
+                    🚧 PEAJE
+                </Button>
 
-        {/* VOTACIÓN */}
-        <Col xs={6} md={6}>
-          <Card className="h-100 bg-dark text-white border-0 shadow-sm" onClick={() => jugar('votacion')} style={{cursor:'pointer'}}>
-            <Card.Body className="d-flex flex-column justify-content-center text-center p-4">
-              <span className="display-4 mb-2">👉</span>
-              <h5 className="fw-bold">Votación</h5>
-            </Card.Body>
-          </Card>
-        </Col>
+                {/* 3. YO NUNCA */}
+                <Button variant="primary" size="lg" className="w-100 py-3 fw-bold shadow text-start ps-4" style={{maxWidth: '400px'}} 
+                    onClick={() => irA('juego-simple')}>
+                    🍺 YO NUNCA
+                </Button>
 
-        {/* PREGUNTAS */}
-        <Col xs={6} md={6}>
-          <Card className="h-100 bg-dark text-white border-0 shadow-sm" onClick={() => jugar('preguntas')} style={{cursor:'pointer'}}>
-            <Card.Body className="d-flex flex-column justify-content-center text-center p-4">
-              <span className="display-4 mb-2">🤔</span>
-              <h5 className="fw-bold">Preguntas</h5>
-            </Card.Body>
-          </Card>
-        </Col>
+                {/* 4. PREGUNTAS (Nuevo) */}
+                <Button variant="info" size="lg" className="w-100 py-3 fw-bold shadow text-dark text-start ps-4" style={{maxWidth: '400px'}} 
+                    onClick={() => irA('preguntas')}>
+                    ❓ PREGUNTAS
+                </Button>
 
-        {/* EL PEAJE (Destacado) */}
-        <Col xs={12}>
-          <Card className="bg-warning text-dark border-0 shadow" onClick={() => jugar('peaje')} style={{cursor:'pointer'}}>
-            <Card.Body className="d-flex align-items-center justify-content-between p-4">
-              <div className="text-start">
-                <h3 className="fw-black m-0">🚧 EL PEAJE</h3>
-                <small className="fw-bold">Carrera de azar</small>
-              </div>
-              <span className="display-3">🚗</span>
-            </Card.Body>
-          </Card>
-        </Col>
-      </Row>
+                {/* 5. IMPOSTOR (Nuevo) */}
+                <Button variant="secondary" size="lg" className="w-100 py-3 fw-bold shadow text-start ps-4" style={{maxWidth: '400px'}} 
+                    onClick={() => irA('impostor')}>
+                    🕵️ IMPOSTOR
+                </Button>
+
+                {/* 6. VOTACIÓN (Abre submenú) */}
+                <Button variant="light" size="lg" className="w-100 py-3 fw-bold shadow text-dark text-start ps-4 border-warning" style={{maxWidth: '400px'}} 
+                    onClick={() => setModoVotacion(true)}>
+                    🗳️ VOTACIÓN ➔
+                </Button>
+            </>
+        ) : (
+            /* --- SUB-MENÚ VOTACIÓN --- */
+            <div className="w-100 d-flex flex-column gap-3 align-items-center animate-in fade-in">
+                <div className="w-100 d-flex justify-content-between align-items-center" style={{maxWidth: '400px'}}>
+                    <h4 className="m-0 text-warning">Modos de Votación</h4>
+                    <Button variant="outline-light" size="sm" onClick={() => setModoVotacion(false)}>🡠 Volver</Button>
+                </div>
+
+                {/* 6.1 RICO O POBRE */}
+                <Button variant="warning" size="lg" className="w-100 py-4 fw-bold shadow text-dark" style={{maxWidth: '400px'}} 
+                    onClick={() => irA('rico-pobre')}>
+                    💸 MUY RICO O MUY POBRE
+                </Button>
+
+                {/* 6.2 MÁS PROBABLE */}
+                <Button variant="warning" size="lg" className="w-100 py-4 fw-bold shadow text-dark" style={{maxWidth: '400px'}} 
+                    onClick={() => irA('mas-probable')}>
+                    🤔 MÁS PROBABLE QUE...
+                </Button>
+            </div>
+        )}
+
+      </div>
     </Container>
   );
 };
