@@ -3,6 +3,8 @@ from pydantic import BaseModel
 from database import db
 import random
 import string
+from datetime import datetime, timedelta, timezone # <--- AGREGAR ESTO
+from google.cloud.firestore import FieldFilter
 
 router = APIRouter()
 
@@ -77,12 +79,52 @@ def obtener_cadena_de_tragos(victima, mascotas_dict):
                 procesados.add(esclavo)
     return cadena
 
+def limpiar_salas_viejas():
+    """Borra las salas que tienen más de 24 horas de antigüedad"""
+    try:
+        # Calculamos la fecha límite (Ahora - 24 horas)
+        # Usamos UTC para no liarnos con zonas horarias
+        limite = datetime.now(timezone.utc) - timedelta(hours=24)
+        
+        # Buscamos salas donde 'creado_en' sea menor (más viejo) que el límite
+        # Nota: Esto requiere que guardemos la fecha al crear la sala
+        docs = db.collection('salas_online').where(filter=FieldFilter('creado_en', '<', limite)).stream()
+        
+        batch = db.batch()
+        count = 0
+        
+        for doc in docs:
+            batch.delete(doc.reference)
+            count += 1
+            # Firestore permite lotes de hasta 500 operaciones
+            if count >= 400:
+                batch.commit()
+                batch = db.batch()
+                count = 0
+                
+        if count > 0:
+            batch.commit()
+            print(f"🧹 Limpieza: Se borraron {count} salas viejas.")
+            
+    except Exception as e:
+        print(f"Error en limpieza automática: {e}")
+
 # --- ENDPOINTS DE LOBBY (CREAR / UNIRSE / ESTADO) ---
 # Estos eran los que faltaban y por eso no creaba la sala
 
 @router.post("/crear")
 def crear_sala(datos: CrearSalaInput):
-    codigo = generar_codigo()
+    # 1. EJECUTAMOS LIMPIEZA (Mantenimiento automático)
+    # Lo hacemos en un try para que si falla la limpieza, NO impida crear la sala
+    try:
+        limpiar_salas_viejas() 
+    except:
+        pass 
+
+    # 2. GENERAMOS CÓDIGO (Ya tenés el de 6 letras)
+    codigo = generar_codigo() 
+    
+    # 3. CREAMOS LA SALA CON FECHA (Timestamp)
     nueva_sala = {
         "host": datos.nombre_host,
         "jugadores": [datos.nombre_host],
@@ -90,8 +132,11 @@ def crear_sala(datos: CrearSalaInput):
         "juego_actual": None,
         "fase": None,
         "turno_actual": None,
-        "datos_juego": {}
+        "datos_juego": {},
+        # IMPORTANTE: Guardamos la fecha actual en UTC
+        "creado_en": datetime.now(timezone.utc) 
     }
+    
     db.collection('salas_online').document(codigo).set(nueva_sala)
     return {"codigo_sala": codigo, "jugadores": nueva_sala["jugadores"]}
 
