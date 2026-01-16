@@ -120,4 +120,31 @@ export const api = {
         body: JSON.stringify({ codigo, juego: "reset" }),
     }).then(r => r.json());
   },
+
+  apostarPiramide: async (codigo: string, nombre: string, apuesta: string) => {
+        const res = await fetch(`${API_URL}/juegos/online/piramide/apostar`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ codigo, nombre, apuesta }),
+        });
+        return res.json();
+    },
+
+    voltearCarta: async (codigo: string) => {
+        const response = await fetch(`${API_URL}/juegos/online/piramide/voltear`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ codigo }), // <--- Cambiado de id_sala a codigo
+        });
+        return response.json();
+    },
+
+    finalizarJuegoOnline: async (codigo: string) => {
+        const response = await fetch(`${API_URL}/juegos/online/finalizar`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ codigo }),
+        });
+        return response.json();
+    },
 }

@@ -13,3 +13,39 @@ body {
   from { opacity: 0; transform: translateY(10px); }
   to { opacity: 1; transform: translateY(0); }
 }
+
+/* src/App.css */
+.piramide-container {
+  display: flex;
+  flex-direction: column-reverse; /* La base (5 cartas) queda abajo */
+  gap: 15px;
+  align-items: center;
+  padding: 20px;
+}
+
+.fila-cartas {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+}
+
+.card-piramide {
+  width: 50px;
+  height: 75px;
+  background-color: #2c3e50;
+  border: 2px solid #34495e;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  font-size: 1.3rem;
+  color: #3498db;
+  box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+}
+
+.card-piramide.revelada {
+  background-color: white;
+  color: #e74c3c;
+  border-color: #ecf0f1;
+}

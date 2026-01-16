@@ -6,6 +6,7 @@ import { api } from '../lib/api';
 // --- IMPORTS DE LOS JUEGOS ---
 import { ImpostorOnline } from './ImpostorOnline'; // Asegurate de tener este
 import { VotacionOnline } from './VotacionOnline'; // Y este nuevo
+import { PiramideOnline } from './PiramideOnline';
 
 interface Props {
   volver: () => void;
@@ -175,6 +176,10 @@ export const MenuOnline = ({ volver, onJuegoIniciado }: Props) => {
           );
       }
       
+      if (juego === 'piramide') {
+            return <PiramideOnline datos={{ codigo: salaActiva.codigo, soyHost, nombre }} salir={accionSalir} />;
+        }
+
       // 3. Error
       return (
           <Container className="pt-5 text-white text-center">
@@ -240,6 +245,22 @@ export const MenuOnline = ({ volver, onJuegoIniciado }: Props) => {
                         >
                              👉 QUIÉN ES MÁS PROBABLE
                         </Button>
+                        <Button variant="outline-warning" size="lg" className="fw-bold py-3" onClick={() => api.iniciarJuegoOnline(salaActiva.codigo, 'piramide')}>
+                            🔺 LA PIRÁMIDE
+                        </Button>
+                        <div className="mt-5 border-top border-secondary pt-4 w-100" style={{maxWidth: '400px'}}>
+                            <Button 
+                                variant="outline-danger" 
+                                size="sm" 
+                                className="w-100"
+                                onClick={() => {
+                                    setSalaActiva(null); // 1. Nos salimos de la sala localmente
+                                    volver();            // 2. Volvemos a la pantalla Home de la App
+                                }}
+                            >
+                                🏠 ABANDONAR Y VOLVER AL INICIO
+                            </Button>
+                        </div>
                     </div>
                 </div>
             ) : (
