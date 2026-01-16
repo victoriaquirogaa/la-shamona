@@ -635,21 +635,27 @@ class PiramideApostar(BaseModel):
 
 @router.post("/piramide/apostar")
 def piramide_apostar(datos: AccionPiramideInput):
+    # 1. PRIMERO obtenemos la sala y definimos 'partida'
     doc_ref = db.collection('salas_online').document(datos.codigo)
     sala = doc_ref.get().to_dict()
     partida = sala['datos_juego']
     jugadores = sala['jugadores']
+
+    # 2. AHORA podemos chequear el mazo porque 'partida' ya existe
+    if len(partida['mazo']) < 10:
+        import random
+        partida['mazo'] = [i for i in range(1, 13)] * 4
+        random.shuffle(partida['mazo'])
     
     # Identificamos quién está jugando
     idx_actual = partida['turno_jugador_idx']
     nombre_jugador = jugadores[idx_actual]
     
-    # 1. Sacar carta
+    # Sacar carta
     mazo = partida['mazo']
-    if not mazo: mazo = [i for i in range(1, 13)] * 4
     carta_nueva = mazo.pop()
     
-    # --- LÓGICA DE APUESTA (Ejemplo rápido) ---
+    # Lógica de apuesta
     cartas_jugador = partida['datos_jugadores'][nombre_jugador]['cartas']
     beber = False
     mensaje_resultado = ""
@@ -665,16 +671,16 @@ def piramide_apostar(datos: AccionPiramideInput):
     mensaje_resultado = "¡Acertaste!" if gano else "Pifiaste. ¡TOMÁS!"
     beber = not gano
 
-    # 🚨 CRUCIAL: GUARDAR LA CARTA EN LA MANO DEL JUGADOR
+    # Guardar carta en la mano
     partida['datos_jugadores'][nombre_jugador]['cartas'].append(carta_nueva)
 
-    # 2. Avanzar turno y ronda
+    # Avanzar turno y ronda
     partida['turno_jugador_idx'] += 1
     if partida['turno_jugador_idx'] >= len(jugadores):
         partida['turno_jugador_idx'] = 0
         partida['ronda_actual'] += 1
     
-    # 3. Actualizar mensaje y fase
+    # Actualizar mensaje y fase
     r = partida['ronda_actual']
     if r <= 3:
         prox = jugadores[partida['turno_jugador_idx']]
@@ -689,39 +695,37 @@ def piramide_apostar(datos: AccionPiramideInput):
     doc_ref.update({"datos_juego": partida})
     
     return {
-        "carta_salio": carta_nueva,       # Evita el 'undefined'
+        "carta_salio": carta_nueva,
         "mensaje_resultado": mensaje_resultado,
         "beber": beber
     }
 
 @router.post("/piramide/voltear")
 def piramide_voltear(datos: AccionPiramideInput):
-    # 1. Buscamos la sala en la colección correcta
+    # 1. Buscamos la sala y definimos 'partida'
     doc_ref = db.collection('salas_online').document(datos.codigo)
     sala = doc_ref.get().to_dict()
     if not sala:
         raise HTTPException(status_code=404, detail="Sala no encontrada")
-        
     partida = sala['datos_juego']
+
+    # 2. Chequeo del mazo (con 'partida' ya definida)
+    if len(partida['mazo']) < 10:
+        import random
+        partida['mazo'] = [i for i in range(1, 13)] * 4
+        random.shuffle(partida['mazo'])
     
-    # 2. Obtenemos posición actual y la carta
+    # Obtenemos posición actual y la carta
     f_idx = partida['piramide_estado']['fila']
     c_idx = partida['piramide_estado']['col']
     
-    # Validamos que no hayamos terminado
     if f_idx > 4:
         return {"terminado": True}
         
     carta_revelada = partida['piramide_cartas'][str(f_idx)][c_idx]
     
-    # 3. Calculamos quién toma (Consecuencias)
-    reglas = [
-        {"b": 3, "a": "TOMÁ"},    # Fila 0
-        {"b": 3, "a": "REPARTÍ"}, # Fila 1
-        {"b": 5, "a": "TOMÁ"},    # Fila 2
-        {"b": 5, "a": "REPARTÍ"}, # Fila 3
-        {"b": 7, "a": "TOMÁ"}     # Fila 4
-    ]
+    # Consecuencias
+    reglas = [{"b": 3, "a": "TOMÁ"}, {"b": 3, "a": "REPARTÍ"}, {"b": 5, "a": "TOMÁ"}, {"b": 5, "a": "REPARTÍ"}, {"b": 7, "a": "TOMÁ"}]
     regla = reglas[f_idx]
     consecuencias = []
     
@@ -735,14 +739,14 @@ def piramide_voltear(datos: AccionPiramideInput):
                 "motivo": f"Tiene {cant} {'vez' if cant==1 else 'veces'} el {carta_revelada}"
             })
 
-    # 4. 🚨 CLAVE: Guardamos la acción para que todos la vean
+    # Guardamos la acción para que todos la vean
     partida['ultima_revelacion'] = {
-        "id_accion": f"f{f_idx}c{c_idx}", # ID único para que el Front sepa que es una nueva carta
+        "id_accion": f"f{f_idx}c{c_idx}",
         "carta": carta_revelada,
         "consecuencias": consecuencias
     }
 
-    # 5. Avanzamos el puntero de la pirámide
+    # Avanzamos el puntero
     c_idx += 1
     if c_idx >= len(partida['piramide_cartas'][str(f_idx)]):
         c_idx = 0
@@ -751,21 +755,15 @@ def piramide_voltear(datos: AccionPiramideInput):
     partida['piramide_estado'] = {"fila": f_idx, "col": c_idx}
     partida['terminado'] = f_idx > 4
     
-    # 6. Actualizamos Firebase
     doc_ref.update({"datos_juego": partida})
-    
     return {"status": "ok"}
 
 @router.post("/finalizar")
 def finalizar_juego(datos: AccionPiramideInput):
-    # Conectamos a la sala
     doc_ref = db.collection('salas_online').document(datos.codigo)
-    
-    # Limpiamos el juego actual y volvemos al estado de espera
     doc_ref.update({
         "juego": None,
         "datos_juego": None,
-        "estado": "esperando" # Esto hace que aparezcan de nuevo los botones de juegos
+        "estado": "esperando"
     })
-    
     return {"status": "ok", "mensaje": "Juego finalizado"}
