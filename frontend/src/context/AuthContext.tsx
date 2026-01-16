@@ -1,78 +1,90 @@
-import React, { createContext, useState, useEffect, useContext, ReactNode } from 'react';
-
-// Definimos qué tiene un Usuario
-interface UserProfile {
-  nombre: string;
-  esInvitado: boolean; // true = solo puso nombre, false = login real (futuro)
-  avatar?: string;     // URL de la imagen (o un emoji por ahora)
-}
-
-// Definimos las Configuraciones
-interface AppSettings {
-  volumen: number;     // 0 a 100
-  vibracion: boolean;
-  idioma: 'ES' | 'EN';
-}
+import React, { createContext, useContext, useEffect, useState } from "react";
+import { 
+    GoogleAuthProvider, 
+    signInWithPopup, 
+    signOut, 
+    onAuthStateChanged, 
+    signInWithEmailAndPassword,
+    createUserWithEmailAndPassword,
+    signInAnonymously // <--- 1. IMPORTAMOS ESTO
+} from "firebase/auth";
+import { auth } from "../lib/firebase";
 
 interface AuthContextType {
-  user: UserProfile | null;
-  settings: AppSettings;
-  login: (nombre: string) => void;
-  logout: () => void;
-  updateSettings: (newSettings: Partial<AppSettings>) => void;
+  user: any;
+  loading: boolean;
+  settings: { volumen: number; vibracion: boolean };
+  loginWithGoogle: () => Promise<void>;
+  loginWithEmail: (email: string, pass: string) => Promise<void>;
+  registerWithEmail: (email: string, pass: string) => Promise<void>;
+  loginAnonymously: () => Promise<void>; // <--- 2. AGREGAMOS A LA INTERFAZ
+  logout: () => Promise<void>;
+  updateSettings: (newSettings: any) => void;
 }
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+const AuthContext = createContext<AuthContextType>({} as AuthContextType);
 
-export const AuthProvider = ({ children }: { children: ReactNode }) => {
-  const [user, setUser] = useState<UserProfile | null>(null);
-  
-  // Configuración por defecto
-  const [settings, setSettings] = useState<AppSettings>({
-    volumen: 50,
-    vibracion: true,
-    idioma: 'ES'
-  });
+export const useAuth = () => useContext(AuthContext);
 
-  // 1. Al iniciar, buscamos si ya había sesión guardada
+export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
+  const [user, setUser] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [settings, setSettings] = useState({ volumen: 50, vibracion: true });
+
   useEffect(() => {
-    const savedUser = localStorage.getItem('lajefa_user');
-    const savedSettings = localStorage.getItem('lajefa_settings');
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      if (currentUser) {
+        // Lógica inteligente para el nombre:
+        // 1. Nombre real (Google)
+        // 2. Parte del mail (Email)
+        // 3. "Invitado" (Anónimo)
+        let nombreDisplay = "Invitado";
+        if (currentUser.displayName) nombreDisplay = currentUser.displayName;
+        else if (currentUser.email) nombreDisplay = currentUser.email.split('@')[0];
 
-    if (savedUser) setUser(JSON.parse(savedUser));
-    if (savedSettings) setSettings(JSON.parse(savedSettings));
+        setUser({
+            uid: currentUser.uid,
+            email: currentUser.email,
+            nombre: nombreDisplay,
+            avatar: currentUser.photoURL || "🕵️" // Avatar por defecto para anónimos
+        });
+      } else {
+        setUser(null);
+      }
+      setLoading(false);
+    });
+    return () => unsubscribe();
   }, []);
 
-  // 2. Función para Iniciar Sesión (Por ahora solo Nombre)
-  const login = (nombre: string) => {
-    const newUser = { nombre, esInvitado: true, avatar: '😎' };
-    setUser(newUser);
-    localStorage.setItem('lajefa_user', JSON.stringify(newUser));
+  const loginWithGoogle = async () => {
+    const provider = new GoogleAuthProvider();
+    await signInWithPopup(auth, provider);
   };
 
-  // 3. Función para Cerrar Sesión
-  const logout = () => {
-    setUser(null);
-    localStorage.removeItem('lajefa_user');
+  const loginWithEmail = async (email: string, pass: string) => {
+    await signInWithEmailAndPassword(auth, email, pass);
   };
 
-  // 4. Actualizar Configuración
-  const updateSettings = (newSettings: Partial<AppSettings>) => {
-    const updated = { ...settings, ...newSettings };
-    setSettings(updated);
-    localStorage.setItem('lajefa_settings', JSON.stringify(updated));
+  const registerWithEmail = async (email: string, pass: string) => {
+    await createUserWithEmailAndPassword(auth, email, pass);
+  };
+
+  // --- 3. FUNCIÓN PARA ENTRAR COMO ANÓNIMO ---
+  const loginAnonymously = async () => {
+    await signInAnonymously(auth);
+  };
+
+  const logout = async () => {
+    await signOut(auth);
+  };
+
+  const updateSettings = (newSettings: any) => {
+      setSettings(prev => ({ ...prev, ...newSettings }));
   };
 
   return (
-    <AuthContext.Provider value={{ user, settings, login, logout, updateSettings }}>
-      {children}
+    <AuthContext.Provider value={{ user, loading, settings, loginWithGoogle, loginWithEmail, registerWithEmail, loginAnonymously, logout, updateSettings }}>
+      {!loading && children}
     </AuthContext.Provider>
   );
-};
-
-// Hook para usar esto fácil en cualquier lado
-export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (!context) throw new Error("useAuth debe usarse dentro de AuthProvider");
-  return context;
 };

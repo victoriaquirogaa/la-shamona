@@ -38,7 +38,7 @@ app.include_router(votacion.router, prefix="/juegos/votacion", tags=["Votacion"]
 # 7. Juego de Preguntas (/juegos/preguntas)
 app.include_router(preguntas.router, prefix="/juegos/preguntas", tags=["Preguntas"])
 
-# 8. Creador de salas online (/juegos/online)
+# DEJARLO ASÍ (Con /juegos/online):
 app.include_router(online.router, prefix="/juegos/online", tags=["Modo Online"])
 
 # 3. Admin (Futuro)
