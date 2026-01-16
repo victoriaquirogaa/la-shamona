@@ -1,34 +1,30 @@
 import { useState, ReactNode } from 'react';
-import { Container, Card, Form, Button, Badge, Row, Col, Modal, ListGroup } from 'react-bootstrap';
+import { Container, Row, Col, Modal, ListGroup, Form } from 'react-bootstrap';
 import { api } from '../lib/api';
+import '../App.css'; // 👈 Importar los estilos
 
 interface Props { volver: () => void; }
 
-// Interfaz para el estado de los mensajes
 interface MensajeEstado {
   titulo: string;
-  cuerpo: ReactNode; // Esto permite pasar texto O componentes HTML (como la lista de tragos)
+  cuerpo: ReactNode;
   tipo: 'info' | 'success' | 'warning' | 'danger';
 }
 
 export const LaJefa = ({ volver }: Props) => {
-  // --- ESTADOS ---
+  // --- ESTADOS (Igual que antes) ---
   const [jugadores, setJugadores] = useState<string[]>([]);
   const [inputNombre, setInputNombre] = useState("");
   const [sala, setSala] = useState<string | null>(null);
   const [carta, setCarta] = useState<any>(null);
   
-  // ESTADO DEDITO
   const [hayDeditoPendiente, setHayDeditoPendiente] = useState(false);
   const [showModalDedito, setShowModalDedito] = useState(false);
-
-  // ESTADO RESULTADOS
+  
   const [showResultado, setShowResultado] = useState(false);
-  const [mensajeResultado, setMensajeResultado] = useState<MensajeEstado>({ 
-      titulo: "", cuerpo: "", tipo: "info" 
-  });
+  const [mensajeResultado, setMensajeResultado] = useState<MensajeEstado>({ titulo: "", cuerpo: "", tipo: "info" });
 
-  // --- LÓGICA LOBBY ---
+  // --- LÓGICA (Idéntica, solo copiamos lo funcional) ---
   const agregarJugador = () => {
     if (inputNombre.trim()) {
       setJugadores([...jugadores, inputNombre.trim()]);
@@ -37,261 +33,252 @@ export const LaJefa = ({ volver }: Props) => {
   };
 
   const iniciar = async () => {
-    // 1. Validación visual
-    if (jugadores.length < 2) {
-       return alert("¡Faltan jugadores! Agrega al menos 2 nombres.");
-    }
-
+    if (jugadores.length < 2) return alert("¡Faltan jugadores! Agrega al menos 2 nombres.");
     try {
-      // 2. Intentamos conectar con el Backend
-      // Nota: Asumimos que existe este endpoint para crear partida local gestionada por backend
       const data = await api.crearPartidaLaJefa(jugadores); 
-
-      if (data && data.id_sala) {
-        setSala(data.id_sala);
-      } else {
-        alert("Error: El servidor no devolvió una ID de sala válida.");
-      }
-    } catch (error) {
-      console.error(error);
-      alert("ERROR DE CONEXIÓN: Asegúrate de que el backend (main.py) esté corriendo.");
-    }
+      if (data && data.id_sala) setSala(data.id_sala);
+      else alert("Error: El servidor no devolvió una ID de sala válida.");
+    } catch (error) { console.error(error); alert("ERROR DE CONEXIÓN"); }
   };
 
-  // --- LÓGICA JUEGO ---
   const sacar = async () => {
     if (!sala) return;
-
-    // Si el jugador aprieta "Sacar" y todavía tiene el botón, se lo borramos.
     if (hayDeditoPendiente) {
         setHayDeditoPendiente(false); 
-        // Opcional: Avisarle que durmió
-        setMensajeResultado({
-            titulo: "😴 DORMISTE", 
-            cuerpo: "Se te venció el Dedito por no usarlo antes de tu turno.", 
-            tipo: "info"
-        });
+        setMensajeResultado({ titulo: "😴 DORMISTE", cuerpo: "Se te venció el Dedito por no usarlo.", tipo: "info" });
         setShowResultado(true);
-        // Nota: No retornamos, dejamos que siga y saque la carta nueva
     }
-
     try {
         const data = await api.sacarCartaLaJefa(sala);
-        
         if (data.terminado) {
           setMensajeResultado({ titulo: "¡Fin del Mazo!", cuerpo: "Mezclen y vuelvan a jugar.", tipo: "info" });
           setShowResultado(true);
         } else {
-          // 1. Manejo de Dedito (Si sale la carta 10)
           if (data.accion_requerida === 'INICIAR_DEDITO') {
               setHayDeditoPendiente(true); 
-              data.accion_requerida = 'NINGUNA'; // Limpiamos acción para que deje seguir jugando
+              data.accion_requerida = 'NINGUNA';
           }
-
           setCarta(data);
           
-          // 2. LOGICA TOMAN TODOS (Carta 3)
-          // Verificamos si el backend nos mandó la lista detallada de tragos
           if (data.datos_extra?.detalle_toman_todos) {
              const listaVisual = (
-               <ListGroup variant="flush" className="text-start bg-transparent w-100">
+               <ListGroup variant="flush" className="text-start w-100">
                  {data.datos_extra.detalle_toman_todos.map((p: any, idx: number) => (
                    <ListGroup.Item key={idx} className="bg-transparent text-white border-secondary d-flex justify-content-between align-items-center py-2">
-                      <span className="fs-5 fw-bold">{p.nombre}</span>
-                      <Badge bg="danger" pill className="fs-6 shadow-sm">
-                        {p.tragos} {p.tragos === 1 ? 'Trago' : 'Tragos'}
-                      </Badge>
+                      <span className="fw-bold">{p.nombre}</span>
+                      <span className="badge rounded-pill bg-danger">{p.tragos} {p.tragos === 1 ? 'Trago' : 'Tragos'}</span>
                    </ListGroup.Item>
                  ))}
                </ListGroup>
              );
              setMensajeResultado({ titulo: "🍻 ¡TOMAN TODOS!", cuerpo: listaVisual, tipo: "warning" });
              setShowResultado(true);
-          }
-          // Si no es lista, vemos si hay un mensaje simple (ej: Regla 1 automática)
-          else if (data.datos_extra?.mensaje_trago) {
+          } else if (data.datos_extra?.mensaje_trago) {
              setMensajeResultado({ titulo: "¡ATENCIÓN!", cuerpo: data.datos_extra.mensaje_trago, tipo: "warning" });
              setShowResultado(true);
           }
         }
-    } catch (error) {
-        console.error("Error al sacar carta:", error);
-    }
+    } catch (error) { console.error("Error al sacar carta:", error); }
   };
 
-  // Resolver Carta Normal (Elegir víctima o mascota)
   const resolverAccionCarta = async (objetivo: string) => {
     await procesarCastigo(objetivo, carta.accion_requerida === 'ELEGIR_PUTA');
-    // Limpiamos la acción localmente para desbloquear el botón de sacar
     setCarta({ ...carta, accion_requerida: 'NINGUNA' });
   };
 
-  // Resolver Dedito (Modal separado)
   const resolverDedito = async (perdedor: string) => {
     setShowModalDedito(false); 
     setHayDeditoPendiente(false); 
     await procesarCastigo(perdedor, false);
   };
 
-  // Lógica común de castigos (Llama al backend)
   const procesarCastigo = async (objetivo: string, esMascota: boolean) => {
     if (!sala) return;
-    let res;
-    
     try {
+        let res;
         if (esMascota) {
-          // Asignar mascota
           res = await api.asignarPuta(sala, carta.jugador, objetivo);
           setMensajeResultado({ titulo: "👠 Nueva Mascota", cuerpo: res.mensaje, tipo: "success" });
         } else {
-          // Registrar Trago (Aquí el backend calcula la cadena de putas)
           res = await api.registrarTrago(sala, objetivo);
-          
           if (res.toman && res.toman.length > 1) {
-              // CADENA DE TRAGOS DETECTADA
-              setMensajeResultado({ 
+             setMensajeResultado({ 
                 titulo: "⛓️ ¡CADENA DE TRAGOS!", 
                 cuerpo: (
                   <div>
                     <p className="mb-3">Perdió <strong>{objetivo}</strong>, pero arrastra a:</p>
                     <div className="d-flex flex-wrap justify-content-center gap-2">
                       {res.toman.map((nombre: string, i: number) => (
-                          <Badge key={i} bg="danger" className="p-2 fs-6">{nombre}</Badge>
+                          <span key={i} className="badge bg-danger p-2 fs-6">{nombre}</span>
                       ))}
                     </div>
                   </div>
                 ), 
                 tipo: "danger" 
-              });
+             });
           } else {
-              // TRAGO SIMPLE
-              setMensajeResultado({ titulo: "🍺 ¡FONDO BLANCO!", cuerpo: `Perdió ${objetivo}.`, tipo: "danger" });
+             setMensajeResultado({ titulo: "🍺 ¡FONDO BLANCO!", cuerpo: `Perdió ${objetivo}.`, tipo: "danger" });
           }
         }
         setShowResultado(true);
-    } catch (e) {
-        console.error(e);
-    }
+    } catch (e) { console.error(e); }
   }
 
   // --- VISTA 1: LOBBY ---
   if (!sala) {
     return (
-      <Container className="min-vh-100 d-flex flex-column justify-content-center align-items-center" data-bs-theme="dark">
-        <h2 className="text-danger fw-bold mb-4">Lobby La Jefa 👠</h2>
-        <Card className="bg-dark text-white border-secondary w-100" style={{ maxWidth: '400px' }}>
-          <Card.Body>
-            <Form.Group className="d-flex gap-2 mb-3">
+      <Container className="min-vh-100 d-flex flex-column justify-content-center align-items-center p-3">
+        <h1 className="titulo-neon mb-4">LA JEFA 👠</h1>
+        
+        <div className="card-shamona p-4 w-100 animate-in zoom-in" style={{ maxWidth: '400px' }}>
+            <h5 className="text-white-50 mb-3 text-uppercase small fw-bold">Armá la ronda</h5>
+            
+            {/* INPUT JUGADOR */}
+            <div className="d-flex gap-2 mb-3">
               <Form.Control 
                 placeholder="Nombre (ej: Tincho)" 
                 value={inputNombre} 
+                className="bg-dark text-white border-secondary rounded-pill px-3"
+                style={{border: '1px solid var(--neon-cyan)'}}
                 onChange={e => setInputNombre(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && agregarJugador()}
               />
-              <Button variant="danger" onClick={agregarJugador}>+</Button>
-            </Form.Group>
-            <div className="mb-4 d-flex flex-wrap gap-2">
-              {jugadores.map((j, i) => (
-                <Badge key={i} bg="light" text="dark" className="p-2 border" style={{cursor:'pointer'}} onClick={() => setJugadores(jugadores.filter((_, idx) => idx !== i))}>
-                  {j} ✕
-                </Badge>
-              ))}
-              {jugadores.length === 0 && <small className="text-muted">Agrega jugadores...</small>}
+              <button className="btn-neon-main py-1 px-3" style={{width: 'auto'}} onClick={agregarJugador}>+</button>
             </div>
-            <Button className="w-100 fw-bold" variant={jugadores.length >= 2 ? "danger" : "secondary"} onClick={iniciar} disabled={jugadores.length < 2}>
-              COMENZAR
-            </Button>
-            <Button variant="link" className="text-muted w-100 mt-2" onClick={volver}>Volver</Button>
-          </Card.Body>
-        </Card>
+
+            {/* LISTA JUGADORES */}
+            <div className="mb-4 d-flex flex-wrap gap-2 justify-content-center" style={{minHeight: '50px'}}>
+              {jugadores.map((j, i) => (
+                <div key={i} className="px-3 py-1 rounded-pill bg-secondary text-white small fw-bold d-flex align-items-center gap-2" 
+                     style={{cursor:'pointer', border: '1px solid rgba(255,255,255,0.3)'}} 
+                     onClick={() => setJugadores(jugadores.filter((_, idx) => idx !== i))}>
+                  {j} <span className="text-danger fw-bold">×</span>
+                </div>
+              ))}
+              {jugadores.length === 0 && <small className="text-white-50 fst-italic mt-2">Agregá jugadores para empezar...</small>}
+            </div>
+
+            {/* BOTONES ACCIÓN */}
+            <button 
+                className="btn-neon-secondary w-100 py-3 fw-bold mb-3" 
+                style={{color: 'var(--neon-pink)', borderColor: 'var(--neon-pink)'}}
+                onClick={iniciar} 
+                disabled={jugadores.length < 2}
+            >
+              COMENZAR PARTIDA
+            </button>
+            <button className="btn btn-link text-white-50 text-decoration-none w-100 small" onClick={volver}>Volver al menú</button>
+        </div>
       </Container>
     );
   }
 
   // --- VISTA 2: MESA DE JUEGO ---
   return (
-    <Container className="min-vh-100 d-flex flex-column align-items-center py-4 text-center position-relative" data-bs-theme="dark">
+    <Container className="min-vh-100 d-flex flex-column align-items-center py-4 text-center position-relative">
       
-      {/* Header */}
-      <div className="w-100 d-flex justify-content-between align-items-center mb-4" style={{maxWidth: '500px'}}>
-        <h3 className="text-danger fw-bold m-0">La Jefa 👠</h3>
-        <Button variant="outline-secondary" size="sm" onClick={() => setSala(null)}>Salir</Button>
+      {/* HEADER */}
+      <div className="w-100 d-flex justify-content-between align-items-center mb-4 px-3" style={{maxWidth: '500px'}}>
+        <div className="titulo-neon fs-4 m-0">LA JEFA</div>
+        <button className="btn btn-sm btn-outline-light rounded-pill px-3" onClick={() => setSala(null)}>SALIR</button>
       </div>
 
-      {/* CARTA CENTRAL */}
-      {carta ? (
-        <Card className="shadow-lg border-4 border-light mb-4 position-relative bg-white text-dark" style={{ width: '280px', height: '400px' }}>
-          <Card.Body className="d-flex flex-column justify-content-between p-4">
-            <div className="d-flex justify-content-between">
-                <h2 className="fw-bold">{carta.carta.split(" ")[0]}</h2>
-                <h2 className="fw-bold">{['Oro','Copa','Basto'].some((x:string) => carta.carta.includes(x)) ? '🪙' : '⚔️'}</h2>
-            </div>
-            
-            <div>
-              <h6 className="text-danger fw-bold text-uppercase ls-2" style={{letterSpacing: '2px'}}>REGLA</h6>
-              <h2 className="fw-black text-uppercase lh-1">{carta.regla}</h2>
-              {carta.regla.includes("Dedito") && <small className="text-dark d-block mt-2 fw-bold animate-pulse">¡Botón activado abajo!</small>}
-            </div>
+      {/* CARTA CENTRAL (Estilo naipe) */}
+      <div className="flex-grow-1 d-flex flex-column justify-content-center align-items-center w-100">
+          {carta ? (
+            <div className="card-shamona bg-white text-dark mb-4 position-relative shadow-lg animate-in flip-in-y" 
+                 style={{ width: '280px', height: '420px', borderRadius: '15px', border: '8px solid white' }}>
+              <div className="d-flex flex-column justify-content-between h-100 p-3">
+                
+                {/* Cabecera Carta */}
+                <div className="d-flex justify-content-between align-items-start">
+                    <h1 className="fw-black m-0 lh-1" style={{fontSize: '3.5rem'}}>{carta.carta.split(" ")[0]}</h1>
+                    <div style={{fontSize: '3rem'}}>{['Oro','Copa','Basto'].some((x:string) => carta.carta.includes(x)) ? '🪙' : '⚔️'}</div>
+                </div>
+                
+                {/* Cuerpo (Regla) */}
+                <div className="my-2">
+                  <div className="text-danger fw-bold text-uppercase small ls-2 mb-1" style={{letterSpacing: '2px'}}>REGLA</div>
+                  <h3 className="fw-black text-uppercase lh-sm" style={{fontSize: '1.8rem'}}>{carta.regla}</h3>
+                  {carta.regla.includes("Dedito") && <div className="badge bg-warning text-dark mt-2 animate-pulse">¡BOTÓN ACTIVADO!</div>}
+                </div>
 
-            <div className="bg-light rounded p-2 border-top border-2">
-              <small className="text-muted text-uppercase fw-bold">Le toca a</small>
-              <h3 className="fw-bold m-0 text-danger">{carta.jugador}</h3>
+                {/* Footer (Jugador) */}
+                <div className="bg-light rounded p-2 border-top border-2">
+                  <small className="text-muted text-uppercase fw-bold" style={{fontSize: '0.7rem'}}>TURNO DE</small>
+                  <h4 className="fw-bold m-0 text-danger text-uppercase">{carta.jugador}</h4>
+                </div>
+              </div>
             </div>
-          </Card.Body>
-        </Card>
-      ) : (
-        <Card className="mb-4 bg-dark border-secondary border-dashed d-flex align-items-center justify-content-center text-muted" style={{ width: '280px', height: '400px' }}>
-          <h3>Toca Sacar</h3>
-        </Card>
-      )}
+          ) : (
+            /* Dorso de carta (Estado inicial) */
+            <div className="mb-4 d-flex align-items-center justify-content-center text-white-50" 
+                 style={{ 
+                    width: '280px', height: '420px', borderRadius: '15px', 
+                    border: '2px dashed rgba(255,255,255,0.2)', 
+                    background: 'rgba(0,0,0,0.2)' 
+                 }}>
+              <div className="text-center">
+                <div className="display-1 mb-2">🃏</div>
+                <h3>TOCA SACAR</h3>
+              </div>
+            </div>
+          )}
 
-      {/* ZONA DE ACCIONES */}
-      {carta && carta.accion_requerida !== 'NINGUNA' && carta.accion_requerida !== 'INICIAR_DEDITO' ? (
-        <div style={{maxWidth: '500px'}} className="w-100 animate-in fade-in slide-in-from-bottom-5">
-          <Badge bg="warning" text="dark" className="mb-3 w-100 p-3 fs-6 fw-bold shadow-sm">
-            {carta.accion_requerida === 'ELEGIR_PUTA' ? '👉 ELIGE A TU NUEVA MASCOTA' : '👇 ¿QUIÉN PERDIÓ?'}
-          </Badge>
-          <Row className="g-2">
-            {(carta.datos_extra?.opciones || jugadores).map((nombre: string) => (
-              <Col xs={6} key={nombre}>
-                <Button variant="light" className="w-100 py-3 fw-bold border-2 text-dark" onClick={() => resolverAccionCarta(nombre)}>
-                    {nombre}
-                </Button>
-              </Col>
-            ))}
-          </Row>
-        </div>
-      ) : (
-        <Button variant="gradient" className="btn-lg w-100 fw-bold bg-danger text-white py-3 shadow" style={{maxWidth: '400px'}} onClick={sacar}>
-          🃏 SACAR CARTA
-        </Button>
-      )}
+          {/* ZONA DE ACCIONES */}
+          {carta && carta.accion_requerida !== 'NINGUNA' && carta.accion_requerida !== 'INICIAR_DEDITO' ? (
+            <div style={{maxWidth: '500px'}} className="w-100 px-3 animate-in slide-up">
+              <div className="badge bg-warning text-dark mb-3 w-100 p-3 fs-6 fw-bold shadow">
+                {carta.accion_requerida === 'ELEGIR_PUTA' ? '👉 ELIGE A TU NUEVA MASCOTA' : '👇 ¿QUIÉN PERDIÓ?'}
+              </div>
+              <Row className="g-2">
+                {(carta.datos_extra?.opciones || jugadores).map((nombre: string) => (
+                  <Col xs={6} key={nombre}>
+                    <button className="btn-neon-main py-3 fw-bold bg-dark text-white border-secondary" onClick={() => resolverAccionCarta(nombre)}>
+                        {nombre}
+                    </button>
+                  </Col>
+                ))}
+              </Row>
+            </div>
+          ) : (
+            <button 
+                className="btn-neon-main py-3 px-5 fw-bold fs-5 shadow-lg" 
+                style={{maxWidth: '300px', background: 'var(--neon-pink)', color: 'white', borderColor: 'var(--neon-pink)'}} 
+                onClick={sacar}
+            >
+              🃏 SACAR CARTA
+            </button>
+          )}
+      </div>
 
       {/* === BOTÓN FLOTANTE DEDITO === */}
       {hayDeditoPendiente && (
-        <Button 
-          variant="warning" 
-          className="position-fixed bottom-0 end-0 m-4 rounded-circle shadow-lg border-4 border-white fw-bold fs-1"
-          style={{width: '80px', height: '80px', zIndex: 1050}}
+        <button 
+          className="position-fixed bottom-0 end-0 m-4 rounded-circle shadow-lg fw-bold d-flex align-items-center justify-content-center animate-bounce"
+          style={{
+              width: '80px', height: '80px', zIndex: 1050, fontSize: '2rem',
+              background: '#ffd700', color: 'black', border: '4px solid white'
+          }}
           onClick={() => setShowModalDedito(true)}
         >
           👆
-        </Button>
+        </button>
       )}
 
       {/* === MODAL RESOLVER DEDITO === */}
-      <Modal show={showModalDedito} onHide={() => setShowModalDedito(false)} centered contentClassName="bg-dark text-white border-warning border-3">
+      <Modal show={showModalDedito} onHide={() => setShowModalDedito(false)} centered dialogClassName="modal-glass">
         <Modal.Header closeButton closeVariant="white" className="border-0">
-          <Modal.Title className="fw-bold text-warning">👆 ¿Quién fue el último?</Modal.Title>
+          <Modal.Title className="fw-bold text-warning w-100 text-center">👆 ¿QUIÉN SE DURMIÓ?</Modal.Title>
         </Modal.Header>
         <Modal.Body>
-           <p className="text-center text-muted mb-4">Elige al lento que se comió el amague.</p>
+           <p className="text-center text-white-50 mb-4 small">Elegí al último en poner el dedo.</p>
            <Row className="g-2">
             {jugadores.map((nombre) => (
               <Col xs={6} key={nombre}>
-                <Button variant="light" className="w-100 py-3 fw-bold text-dark" onClick={() => resolverDedito(nombre)}>
+                <button className="btn btn-outline-light w-100 py-3 fw-bold" onClick={() => resolverDedito(nombre)}>
                     {nombre}
-                </Button>
+                </button>
               </Col>
             ))}
            </Row>
@@ -299,16 +286,14 @@ export const LaJefa = ({ volver }: Props) => {
       </Modal>
 
       {/* === MODAL RESULTADO GENERAL === */}
-      <Modal show={showResultado} onHide={() => setShowResultado(false)} centered contentClassName="bg-dark text-white border-0">
-        <Modal.Header closeButton closeVariant="white" className={`border-0 bg-${mensajeResultado.tipo === 'danger' ? 'danger' : (mensajeResultado.tipo === 'warning' ? 'warning' : 'dark')}`}>
-          <Modal.Title className={`fw-bold ${mensajeResultado.tipo === 'warning' ? 'text-dark' : 'text-white'}`}>{mensajeResultado.titulo}</Modal.Title>
-        </Modal.Header>
-        <Modal.Body className="text-center py-4 d-flex flex-column align-items-center">
-          <div className="fw-light fs-5 w-100">{mensajeResultado.cuerpo}</div>
+      <Modal show={showResultado} onHide={() => setShowResultado(false)} centered dialogClassName="modal-glass">
+        <Modal.Body className="text-center py-5 d-flex flex-column align-items-center">
+          <h2 className={`fw-black mb-4 ${mensajeResultado.tipo === 'danger' ? 'text-danger' : (mensajeResultado.tipo === 'success' ? 'text-success' : 'text-info')}`}>
+              {mensajeResultado.titulo}
+          </h2>
+          <div className="fw-light fs-5 w-100 text-white mb-4">{mensajeResultado.cuerpo}</div>
+          <button className="btn-neon-secondary px-5" onClick={() => setShowResultado(false)}>CONTINUAR</button>
         </Modal.Body>
-        <Modal.Footer className="border-0 justify-content-center">
-          <Button variant="light" size="lg" className="px-5 fw-bold" onClick={() => setShowResultado(false)}>OK, SIGUIENTE</Button>
-        </Modal.Footer>
       </Modal>
 
     </Container>

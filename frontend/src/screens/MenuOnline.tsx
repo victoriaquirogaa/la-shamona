@@ -1,16 +1,17 @@
 import { useState, useEffect } from 'react';
-import { Container, Row, Col, Card, Button, Form, Alert, Badge, Modal, Spinner } from 'react-bootstrap';
+import { Container, Row, Col, Form, Spinner, Modal } from 'react-bootstrap';
 import Swal from 'sweetalert2';
 import { api } from '../lib/api';
+import '../App.css'; 
 
 // --- IMPORTS DE LOS JUEGOS ---
-import { ImpostorOnline } from './ImpostorOnline'; // Asegurate de tener este
-import { VotacionOnline } from './VotacionOnline'; // Y este nuevo
+import { ImpostorOnline } from './ImpostorOnline';
+import { VotacionOnline } from './VotacionOnline';
 import { PiramideOnline } from './PiramideOnline';
+import { LaJefaOnline } from './LaJefaOnline'; 
 
 interface Props {
   volver: () => void;
-  // Ya no dependemos tanto de esta prop si renderizamos acá mismo, pero la dejamos por compatibilidad
   onJuegoIniciado: (juego: string, codigoSala: string, soyHost: boolean, miNombre: string) => void; 
 }
 
@@ -26,43 +27,37 @@ export const MenuOnline = ({ volver, onJuegoIniciado }: Props) => {
   const [catSeleccionada, setCatSeleccionada] = useState("");
   const [loadingCats, setLoadingCats] = useState(false);
 
-  // --- SYNC MEJORADO ---
+  // --- SYNC ---
   useEffect(() => {
     let intervalo: any;
     if (salaActiva) {
       intervalo = setInterval(async () => {
         try {
           const data = await api.getSalaOnline(salaActiva.codigo);
-          
-          // Actualizamos TODO el estado de la sala (importante para saber si jugamos)
           if (data) {
-              setSalaActiva((prev: any) => ({
-                  ...prev,
-                  jugadores: data.jugadores,
-                  estado: data.estado,           // <--- Agregamos esto
-                  juego_actual: data.juego_actual // <--- Y esto
-              }));
-
-              // (Opcional) Avisar al padre, aunque ahora manejamos la vista acá
-              if (data.estado === 'jugando') {
-                  const soyHost = data.jugadores[0] === nombre;
-                  onJuegoIniciado(data.juego_actual, salaActiva.codigo, soyHost, nombre);
-              }
+             setSalaActiva((prev: any) => ({
+                 ...prev,
+                 jugadores: data.jugadores,
+                 estado: data.estado,
+                 juego_actual: data.juego_actual
+             }));
+             if (data.estado === 'jugando') {
+                 const soyHost = data.jugadores[0] === nombre;
+                 onJuegoIniciado(data.juego_actual, salaActiva.codigo, soyHost, nombre);
+             }
           }
         } catch (e) { console.error("Sync error"); }
       }, 2000);
     }
     return () => clearInterval(intervalo);
-  }, [salaActiva?.codigo, nombre, onJuegoIniciado]); // Ojo con las dependencias
+  }, [salaActiva?.codigo, nombre, onJuegoIniciado]);
 
   // --- HELPERS ---
   const mostrarAlerta = (icono: any, titulo: string, texto: string) => {
       Swal.fire({ icon: icono, title: titulo, text: texto, background: '#212529', color: '#fff', confirmButtonColor: '#dc3545' });
   }
   
-  const salirDeLaSala = () => {
-      setSalaActiva(null); // Volvemos al lobby de crear/unirse
-  };
+  const salirDeLaSala = () => setSalaActiva(null);
 
   const handleCrear = async () => {
     if (!nombre.trim()) return mostrarAlerta('warning', '¡Falta el nombre!', 'Ponete un nombre.');
@@ -85,19 +80,11 @@ export const MenuOnline = ({ volver, onJuegoIniciado }: Props) => {
     setLoading(false);
   };
 
-  // --- LÓGICA DE INICIO DE JUEGOS ---
+  // --- LÓGICA DE INICIO ---
+  const iniciarLaJefa = async () => { if (salaActiva) await api.iniciarJuegoOnline(salaActiva.codigo, 'la-jefa'); };
   
-  // 1. LA JEFA
-  const iniciarLaJefa = async () => {
-      if (!salaActiva) return;
-      await api.iniciarJuegoOnline(salaActiva.codigo, 'la-jefa');
-  };
-
-  // 2. IMPOSTOR
   const abrirConfigImpostor = async () => {
-      if (salaActiva.jugadores.length < 3) {
-          return mostrarAlerta('warning', 'Faltan jugadores', 'Para el Impostor necesitan ser mínimo 3 personas.');
-      }
+      if (salaActiva.jugadores.length < 3) return mostrarAlerta('warning', 'Faltan jugadores', 'Mínimo 3 personas.');
       setShowModalImpostor(true);
       setLoadingCats(true);
       const cats = await api.getCategoriasImpostor();
@@ -112,80 +99,39 @@ export const MenuOnline = ({ volver, onJuegoIniciado }: Props) => {
           const catId = catSeleccionada === "" ? undefined : catSeleccionada;
           await api.iniciarJuegoOnline(salaActiva.codigo, 'impostor', catId);
           setShowModalImpostor(false); 
-      } catch (e) {
-          mostrarAlerta('error', 'Error al iniciar', 'Hubo un problema comunicando con el servidor.');
-      }
+      } catch (e) { mostrarAlerta('error', 'Error', 'Falló el inicio.'); }
       setLoadingCats(false);
   };
 
-  // 3. RICO O POBRE (NUEVO)
-  const iniciarRicoPobre = async () => {
-      if (!salaActiva) return;
-      await api.iniciarJuegoOnline(salaActiva.codigo, 'rico_pobre');
-  };
-
-  // 4. QUIEN ES MAS PROBABLE (NUEVO)
+  const iniciarRicoPobre = async () => { if (salaActiva) await api.iniciarJuegoOnline(salaActiva.codigo, 'rico_pobre'); };
+  
   const iniciarProbable = async () => {
       if (!salaActiva) return;
-      if (salaActiva.jugadores.length < 2) {
-          return mostrarAlerta('warning', 'Faltan jugadores', 'Necesitan ser mínimo 2 personas.');
-      }
+      if (salaActiva.jugadores.length < 2) return mostrarAlerta('warning', 'Faltan jugadores', 'Mínimo 2 personas.');
       await api.iniciarJuegoOnline(salaActiva.codigo, 'probable');
   };
 
-  // --- VISTAS DEL JUEGO ACTIVO ---
-  // Si la sala está en estado 'jugando', mostramos el componente del juego en vez del lobby
-  // --- VISTAS DEL JUEGO ACTIVO ---
-  // Si la sala está en estado 'jugando', el MenuOnline desaparece y muestra el juego
-
-  // 👇 AGREGÁ ESTA FUNCIÓN NUEVA
   const volverAlLobby = async () => {
       if (!salaActiva) return;
-      // Llamamos al backend para que resetee el estado a "esperando"
       await api.terminarJuego(salaActiva.codigo);
   };
 
- // --- VISTAS DEL JUEGO ACTIVO ---
-  // Si la sala está en estado 'jugando', el MenuOnline desaparece y muestra el juego
+  // --- VISTAS DEL JUEGO ACTIVO ---
   if (salaActiva?.estado === 'jugando') {
       const soyHost = salaActiva.jugadores[0] === nombre;
       const juego = salaActiva.juego_actual;
-
-      // Definimos qué hace el botón salir:
-      // Si soy Host -> Reseteo la sala para todos (volverAlLobby)
-      // Si soy Invitado -> Me salgo yo solo (salirDeLaSala)
       const accionSalir = soyHost ? volverAlLobby : salirDeLaSala;
 
-      // 1. Si es IMPOSTOR
-      if (juego === 'impostor') {
-          return <ImpostorOnline datos={{ codigo: salaActiva.codigo, soyHost, nombre }} salir={accionSalir} />;
-      }
-      
-      // 2. Si es RICO/POBRE o PROBABLE
-      if (juego === 'rico_pobre' || juego === 'probable') {
-          return (
-              <VotacionOnline 
-                  datos={{
-                      codigo: salaActiva.codigo,
-                      soyHost,
-                      nombre: nombre,
-                      juego: juego 
-                  }} 
-                  salir={accionSalir} // <--- Acá usamos la acción inteligente
-              />
-          );
-      }
-      
-      if (juego === 'piramide') {
-            return <PiramideOnline datos={{ codigo: salaActiva.codigo, soyHost, nombre }} salir={accionSalir} />;
-        }
+      if (juego === 'la-jefa') return <LaJefaOnline datos={{ codigo: salaActiva.codigo, soyHost, nombre }} salir={accionSalir} />;
+      if (juego === 'impostor') return <ImpostorOnline datos={{ codigo: salaActiva.codigo, soyHost, nombre }} salir={accionSalir} />;
+      if (juego === 'rico_pobre' || juego === 'probable') return <VotacionOnline datos={{ codigo: salaActiva.codigo, soyHost, nombre, juego }} salir={accionSalir} />;
+      if (juego === 'piramide') return <PiramideOnline datos={{ codigo: salaActiva.codigo, soyHost, nombre }} salir={accionSalir} />;
 
-      // 3. Error
       return (
           <Container className="pt-5 text-white text-center">
-              <h1>⚠️ Error de Conexión</h1>
-              <p>El juego "{juego}" no tiene pantalla asignada.</p>
-              <Button onClick={salirDeLaSala}>Salir</Button>
+              <h1>⚠️ Error</h1>
+              <p>Juego no encontrado: {juego}</p>
+              <button className="btn-neon-secondary" onClick={salirDeLaSala}>Salir</button>
           </Container>
       );
   }
@@ -196,92 +142,104 @@ export const MenuOnline = ({ volver, onJuegoIniciado }: Props) => {
       const faltanJugadores = salaActiva.jugadores.length < 3;
 
       return (
-        <Container className="min-vh-100 py-4 d-flex flex-column align-items-center text-center bg-dark text-white">
-            <h2 className="text-muted mb-4">Sala de Espera</h2>
+        <Container className="min-vh-100 py-4 d-flex flex-column align-items-center text-center p-3">
             
-            <Card className="bg-dark border-success shadow-lg mb-4" style={{ width: '100%', maxWidth: '400px' }}>
-                <Card.Body className="p-4">
-                    <small className="text-uppercase text-secondary fw-bold ls-2">CÓDIGO</small>
-                    <h1 className="display-1 fw-black text-success my-2" style={{letterSpacing: '5px'}}>{salaActiva.codigo}</h1>
-                </Card.Body>
-            </Card>
+            {/* CÓDIGO DE SALA */}
+            <div className="card-shamona p-4 mb-4 w-100 animate-in zoom-in" style={{ maxWidth: '450px', border: '1px solid var(--neon-cyan)' }}>
+                <small className="text-uppercase text-info fw-bold" style={{letterSpacing: '2px'}}>CÓDIGO DE SALA</small>
+                <h1 className="display-1 fw-black my-2 titulo-neon" style={{letterSpacing: '5px', textShadow: '0 0 20px rgba(102, 252, 241, 0.5)'}}>
+                    {salaActiva.codigo}
+                </h1>
+            </div>
 
-            <h4 className="mb-3">Jugadores ({salaActiva.jugadores.length}):</h4>
-            <div className="d-flex flex-wrap justify-content-center gap-2 mb-5">
+            {/* LISTA DE JUGADORES */}
+            <h5 className="mb-3 text-white-50">JUGADORES CONECTADOS ({salaActiva.jugadores.length})</h5>
+            <div className="d-flex flex-wrap justify-content-center gap-2 mb-5 w-100" style={{maxWidth: '500px'}}>
                 {salaActiva.jugadores.map((j: string, i: number) => (
-                    <Badge key={i} bg={i === 0 ? "warning" : "light"} text="dark" className="p-3 fs-5 border">
-                        {i === 0 ? "👑 " : ""}{j}
-                    </Badge>
+                    <div key={i} className="px-3 py-2 rounded-pill fw-bold d-flex align-items-center gap-2 animate-in fade-in"
+                        style={{
+                            background: i === 0 ? 'rgba(255, 215, 0, 0.1)' : 'rgba(255, 255, 255, 0.05)',
+                            border: i === 0 ? '1px solid #ffd700' : '1px solid rgba(255, 255, 255, 0.2)',
+                            color: i === 0 ? '#ffd700' : 'white'
+                        }}
+                    >
+                        {i === 0 && '👑'} {j}
+                    </div>
                 ))}
             </div>
 
             {soyHost ? (
-                <div className="w-100" style={{maxWidth: '400px'}}>
-                    <Alert variant="info" className="fw-bold">👑 Host: Elige juego</Alert>
-                    <div className="d-grid gap-3">
-                        {/* BOTONES EXISTENTES */}
-                        <Button variant="danger" size="lg" className="fw-bold py-3" onClick={iniciarLaJefa}>
-                            👠 LA JEFA
-                        </Button>
+                <div className="w-100 d-grid gap-3 animate-in slide-up" style={{maxWidth: '400px'}}>
+                    <div className="text-info fw-bold mb-2 small text-uppercase">👑 HOST: ELEGÍ EL JUEGO</div>
+                    
+                    {/* LA JEFA */}
+                    <button className="btn-neon-secondary py-3 fw-bold" style={{color: 'var(--neon-pink)', borderColor: 'var(--neon-pink)'}} onClick={iniciarLaJefa}>
+                        👠 LA JEFA
+                    </button>
 
-                        <Button 
-                            variant="info" size="lg" className="fw-bold py-3 text-dark" 
-                            onClick={abrirConfigImpostor}
-                            style={faltanJugadores ? {opacity: 0.6} : {}}
-                        >
-                            🕵️‍♂️ IMPOSTOR
-                            {faltanJugadores && <div className="small text-danger fw-bold">(Mínimo 3)</div>}
-                        </Button>
+                    {/* IMPOSTOR */}
+                    <button className="btn-neon-secondary py-3 fw-bold" style={{color: '#bd00ff', borderColor: '#bd00ff'}} onClick={abrirConfigImpostor}>
+                        🕵️‍♂️ IMPOSTOR
+                        {faltanJugadores && <span className="d-block small text-white-50" style={{fontSize: '0.7rem'}}>(Mínimo 3)</span>}
+                    </button>
 
-                        {/* --- BOTONES NUEVOS --- */}
-                        <Button variant="warning" size="lg" className="fw-bold py-3 text-dark" onClick={iniciarRicoPobre}>
-                             💰 MUY DE RICO / POBRE
-                        </Button>
+                    {/* RICO O POBRE */}
+                    <button className="btn-neon-main py-3 fw-bold" style={{color: '#ffd700', borderColor: '#ffd700'}} onClick={iniciarRicoPobre}>
+                        💰 MUY RICO / POBRE
+                    </button>
 
-                        <Button 
-                            variant="primary" size="lg" className="fw-bold py-3" 
-                            onClick={iniciarProbable}
-                            style={salaActiva.jugadores.length < 2 ? {opacity: 0.6} : {}}
-                        >
-                             👉 QUIÉN ES MÁS PROBABLE
-                        </Button>
-                        <Button variant="outline-warning" size="lg" className="fw-bold py-3" onClick={() => api.iniciarJuegoOnline(salaActiva.codigo, 'piramide')}>
-                            🔺 LA PIRÁMIDE
-                        </Button>
-                        <div className="mt-5 border-top border-secondary pt-4 w-100" style={{maxWidth: '400px'}}>
-                            <Button 
-                                variant="outline-danger" 
-                                size="sm" 
-                                className="w-100"
-                                onClick={() => {
-                                    setSalaActiva(null); // 1. Nos salimos de la sala localmente
-                                    volver();            // 2. Volvemos a la pantalla Home de la App
-                                }}
-                            >
-                                🏠 ABANDONAR Y VOLVER AL INICIO
-                            </Button>
-                        </div>
+                    {/* PROBABLE */}
+                    <button className="btn-neon-main py-3 fw-bold" onClick={iniciarProbable} disabled={salaActiva.jugadores.length < 2}>
+                        👉 QUIÉN ES MÁS PROBABLE
+                    </button>
+
+                    {/* PIRAMIDE */}
+                    <button className="btn-neon-main py-3 fw-bold" style={{color: '#ff5500', borderColor: '#ff5500'}} onClick={() => api.iniciarJuegoOnline(salaActiva.codigo, 'piramide')}>
+                        🔺 LA PIRÁMIDE
+                    </button>
+
+                    {/* SALIR */}
+                    <div className="mt-4 pt-3 border-top border-secondary opacity-75">
+                         <button className="btn btn-link text-danger text-decoration-none small" onClick={() => { setSalaActiva(null); volver(); }}>
+                            ❌ ABANDONAR SALA
+                         </button>
                     </div>
                 </div>
             ) : (
-                <div className="animate-pulse">
-                    <h3 className="text-info fw-light">Esperando al Host...</h3>
+                <div className="text-center mt-4 w-100" style={{maxWidth: '400px'}}>
+                    <div className="animate-pulse mb-5">
+                        <Spinner animation="grow" variant="info" className="mb-3"/>
+                        <h4 className="text-info fw-light">Esperando al Host...</h4>
+                        <p className="text-white-50 small">No te vayas, el juego está por arrancar.</p>
+                    </div>
+
+                    <button 
+                        className="btn btn-outline-danger w-100 py-2 rounded-pill small opacity-75"
+                        style={{border: '1px dashed #dc3545'}} 
+                        onClick={() => { 
+                            setSalaActiva(null);
+                            volver();
+                        }}
+                    >
+                        ❌ SALIR DE LA SALA
+                    </button>
                 </div>
             )}
 
-            {/* MODAL SELECCIÓN CATEGORÍA (IMPOSTOR) */}
-            <Modal show={showModalImpostor} onHide={() => setShowModalImpostor(false)} centered contentClassName="bg-dark text-white border-info">
+            {/* MODAL IMPOSTOR */}
+            <Modal show={showModalImpostor} onHide={() => setShowModalImpostor(false)} centered dialogClassName="modal-glass">
                 <Modal.Header closeButton closeVariant="white">
-                    <Modal.Title>Configurar Impostor 🕵️‍♂️</Modal.Title>
+                    <Modal.Title className="text-info fw-bold">CONFIGURAR IMPOSTOR 🕵️‍♂️</Modal.Title>
                 </Modal.Header>
                 <Modal.Body>
                     <Form.Group>
-                        <Form.Label>Elegí la categoría:</Form.Label>
-                        {loadingCats ? <div className="text-center"><Spinner animation="border" size="sm"/></div> : (
+                        <Form.Label className="text-white small fw-bold">ELEGÍ TEMÁTICA:</Form.Label>
+                        {loadingCats ? <div className="text-center"><Spinner animation="border" variant="info"/></div> : (
                             <Form.Select 
-                                className="bg-secondary text-white border-0 fw-bold" 
+                                className="bg-dark text-white border-secondary rounded-pill py-2 fw-bold text-center"
                                 value={catSeleccionada} 
                                 onChange={(e) => setCatSeleccionada(e.target.value)}
+                                style={{background: 'rgba(0,0,0,0.5)'}}
                             >
                                 <option value="">🎲 Aleatoria (Mix)</option>
                                 {categorias.map((c: any) => (
@@ -292,49 +250,85 @@ export const MenuOnline = ({ volver, onJuegoIniciado }: Props) => {
                     </Form.Group>
                 </Modal.Body>
                 <Modal.Footer className="border-0">
-                    <Button variant="link" className="text-white" onClick={() => setShowModalImpostor(false)}>Cancelar</Button>
-                    <Button 
-                        variant="info" className="fw-bold px-4" onClick={iniciarImpostorConfirmado} disabled={loadingCats}
-                    >
-                        {loadingCats ? "Iniciando..." : "¡COMENZAR PARTIDA!"}
-                    </Button>
+                    <button className="btn btn-link text-white-50 text-decoration-none" onClick={() => setShowModalImpostor(false)}>Cancelar</button>
+                    <button className="btn-neon-secondary px-4 py-2" onClick={iniciarImpostorConfirmado} disabled={loadingCats}>
+                        {loadingCats ? "..." : "¡JUGAR!"}
+                    </button>
                 </Modal.Footer>
             </Modal>
-
         </Container>
       );
   }
 
-  // VISTA LOGIN
+  // --- VISTA LOGIN ---
   return (
-    <Container className="min-vh-100 py-4 d-flex flex-column bg-dark text-white">
-      <div className="d-flex align-items-center mb-5">
-        <Button variant="outline-light" className="me-3 rounded-circle" onClick={volver}>🡠</Button>
-        <h2 className="fw-bold m-0">Lobby Online 🌎</h2>
+    <Container className="min-vh-100 py-4 d-flex flex-column p-4">
+      {/* HEADER */}
+      <div className="d-flex align-items-center mb-5 animate-in fade-in">
+        <button 
+            className="btn btn-outline-light rounded-circle me-3 d-flex align-items-center justify-content-center" 
+            style={{width: '40px', height: '40px', border: '1px solid var(--neon-cyan)', color: 'var(--neon-cyan)'}}
+            onClick={volver}
+        >
+            🡠
+        </button>
+        <div>
+            <h2 className="titulo-neon m-0 lh-1">LOBBY ONLINE</h2>
+            <small className="text-white-50">Juegos a distancia</small>
+        </div>
       </div>
-      <div className="flex-grow-1 d-flex flex-column justify-content-center align-items-center">
-        <Form.Control 
-            size="lg" type="text" placeholder="Ej: Tincho" 
-            className="bg-dark text-white border-secondary fw-bold text-center"
-            value={nombre} 
-            onChange={(e) => {
-                const val = e.target.value;
-                setNombre(val.charAt(0).toUpperCase() + val.slice(1));
-            }}
-        />
-        <Row className="g-4 w-100 mt-2" style={{maxWidth: '600px'}}>
-            <Col md={6}>
-                <Button variant="success" size="lg" className="w-100 py-5 fw-bold fs-4" onClick={handleCrear} disabled={loading}>
-                    👑 CREAR SALA
-                </Button>
+
+      <div className="flex-grow-1 d-flex flex-column justify-content-center align-items-center w-100">
+        
+        {/* INPUT NOMBRE */}
+        <div className="w-100 mb-5 animate-in zoom-in" style={{maxWidth: '400px'}}>
+             <label className="text-info small fw-bold ms-2 mb-1">TU APODO</label>
+             <Form.Control 
+                size="lg" type="text" placeholder="Ej: Tincho" 
+                className="bg-dark text-white border-secondary rounded-pill text-center fw-bold py-3 shadow-none"
+                style={{border: '1px solid var(--neon-cyan)', background: 'rgba(0,0,0,0.3)', fontSize: '1.2rem'}}
+                value={nombre} 
+                onChange={(e) => {
+                    const val = e.target.value;
+                    setNombre(val.charAt(0).toUpperCase() + val.slice(1));
+                }}
+            />
+        </div>
+
+        <Row className="g-4 w-100 justify-content-center" style={{maxWidth: '800px'}}>
+            {/* CREAR SALA */}
+            <Col md={6} className="d-flex justify-content-center">
+                <div className="card-shamona p-4 w-100 text-center animate-in slide-up" style={{borderColor: 'rgba(255,255,255,0.1)'}}>
+                    <h4 className="text-white mb-3">¿Sos el Host?</h4>
+                    <button 
+                        className="btn-neon-main w-100 py-3 fw-bold fs-5" 
+                        onClick={handleCrear} 
+                        disabled={loading || !nombre}
+                    >
+                        {loading ? <Spinner size="sm"/> : "👑 CREAR SALA"}
+                    </button>
+                </div>
             </Col>
-            <Col md={6}>
-                <div className="d-flex flex-column gap-2">
-                    <Form.Control placeholder="CÓDIGO" className="text-center text-uppercase fw-bold bg-secondary text-white border-0 py-3" maxLength={6}
-                        value={codigoSala} onChange={(e) => setCodigoSala(e.target.value.toUpperCase())} />
-                    <Button variant="primary" size="lg" className="w-100 fw-bold" onClick={handleUnirse} disabled={loading}>
-                        UNIRSE
-                    </Button>
+
+            {/* UNIRSE */}
+            <Col md={6} className="d-flex justify-content-center">
+                <div className="card-shamona p-4 w-100 text-center animate-in slide-up" style={{borderColor: 'rgba(255,255,255,0.1)', animationDelay: '0.2s'}}>
+                    <h4 className="text-white mb-3">¿Tenés código?</h4>
+                    <Form.Control 
+                        placeholder="CÓDIGO (Ej: A1B2)" 
+                        className="text-center text-uppercase fw-bold bg-dark text-white border-secondary rounded-pill py-2 mb-3" 
+                        maxLength={6}
+                        style={{letterSpacing: '3px'}}
+                        value={codigoSala} 
+                        onChange={(e) => setCodigoSala(e.target.value.toUpperCase())} 
+                    />
+                    <button 
+                        className="btn-neon-secondary w-100 py-2 fw-bold" 
+                        onClick={handleUnirse} 
+                        disabled={loading || !nombre || !codigoSala}
+                    >
+                        {loading ? <Spinner size="sm"/> : "🚀 UNIRSE"}
+                    </button>
                 </div>
             </Col>
         </Row>

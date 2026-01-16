@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
-import { Container, Button, Badge, Spinner, Card, Row, Col } from 'react-bootstrap';
+import { Container, Spinner, Row, Col } from 'react-bootstrap';
 import { api } from '../lib/api';
 import Swal from 'sweetalert2';
+import '../App.css'; // 👈 Estilos neón
 
 interface Props {
   datos: { codigo: string; soyHost: boolean; nombre: string };
@@ -11,9 +12,9 @@ interface Props {
 export const PiramideOnline = ({ datos, salir }: Props) => {
   const [sala, setSala] = useState<any>(null);
   const [loading, setLoading] = useState(false);
-  const [ultimoIdMostrado, setUltimoIdMostrado] = useState(""); // 🚨 Para no repetir carteles
+  const [ultimoIdMostrado, setUltimoIdMostrado] = useState(""); 
 
-  // Polling de la sala (cada 2 segundos)
+  // --- SYNC (Igual que antes) ---
   useEffect(() => {
     const intervalo = setInterval(async () => {
       try {
@@ -24,7 +25,7 @@ export const PiramideOnline = ({ datos, salir }: Props) => {
     return () => clearInterval(intervalo);
   }, [datos.codigo]);
 
-  // 🚨 EFECTO PARA MOSTRAR TRAGOS A TODOS
+  // --- EFECTO TRAGOS (Igual que antes) ---
   useEffect(() => {
     const rev = sala?.datos_juego?.ultima_revelacion;
     if (rev && rev.id_accion !== ultimoIdMostrado) {
@@ -38,17 +39,18 @@ export const PiramideOnline = ({ datos, salir }: Props) => {
         Swal.fire({
           title: `¡Salió el ${rev.carta}!`,
           text: msj,
-          icon: 'info',
-          timer: 3500, // Se cierra solo para no interrumpir el ritmo
+          icon: 'info', // Podrías poner 'warning' para que sea más alarmante
+          timer: 4000,
           showConfirmButton: false,
           background: '#212529',
-          color: '#fff'
+          color: '#fff',
+          backdrop: `rgba(255,85,0,0.2)` // Fondo naranja sutil
         });
       }
     }
   }, [sala]);
 
-  if (!sala || !sala.datos_juego) return <Spinner />;
+  if (!sala || !sala.datos_juego) return <Container className="min-vh-100 d-flex justify-content-center align-items-center bg-dark"><Spinner animation="border" variant="warning"/></Container>;
 
   const p = sala.datos_juego;
   const esMiTurno = sala.jugadores[p.turno_jugador_idx] === datos.nombre;
@@ -61,7 +63,7 @@ export const PiramideOnline = ({ datos, salir }: Props) => {
       await Swal.fire({
         title: `Salió un ${res.carta_salio}`,
         text: res.mensaje_resultado,
-        icon: res.beber ? 'warning' : 'success',
+        icon: res.beber ? 'error' : 'success',
         timer: 1500,
         showConfirmButton: false,
         background: '#212529',
@@ -72,89 +74,117 @@ export const PiramideOnline = ({ datos, salir }: Props) => {
   };
 
   const handleVoltear = async () => {
-    try {
-      await api.voltearCarta(datos.codigo);
-      // No hace falta Swal.fire acá, el useEffect de arriba se encarga
-    } catch (e) { console.error(e); }
+    try { await api.voltearCarta(datos.codigo); } catch (e) { console.error(e); }
   };
 
+  // --- VISTA FASE 1: APUESTAS ---
   const renderRecoleccion = () => (
-    <Card className="bg-dark border-secondary text-white p-4 mb-2 shadow-lg w-100" style={{maxWidth: '450px'}}>
-      <h4 className="fw-bold text-info mb-4">{p.mensaje}</h4>
-      {esMiTurno && (
+    <div className="card-shamona p-4 mb-3 shadow-lg w-100 animate-in slide-up" style={{maxWidth: '450px', border: '1px solid #ff5500'}}>
+      <h6 className="text-white-50 text-uppercase ls-2 mb-1">TURNO DE {esMiTurno ? "TI" : sala.jugadores[p.turno_jugador_idx]}</h6>
+      <h3 className="fw-black text-warning mb-4 text-uppercase" style={{textShadow: '0 0 10px #ff5500'}}>{p.mensaje}</h3>
+      
+      {esMiTurno ? (
         <div className="d-grid gap-3">
           {p.ronda_actual === 1 && (
             <Row className="g-2">
-              <Col><Button variant="outline-info" size="lg" className="w-100" onClick={() => handleApuesta('par')} disabled={loading}>PAR</Button></Col>
-              <Col><Button variant="outline-info" size="lg" className="w-100" onClick={() => handleApuesta('impar')} disabled={loading}>IMPAR</Button></Col>
+              <Col><button className="btn-neon-main w-100 py-3 fw-bold" style={{borderColor: '#00d4ff', color: '#00d4ff'}} onClick={() => handleApuesta('par')} disabled={loading}>PAR</button></Col>
+              <Col><button className="btn-neon-main w-100 py-3 fw-bold" style={{borderColor: '#bd00ff', color: '#bd00ff'}} onClick={() => handleApuesta('impar')} disabled={loading}>IMPAR</button></Col>
             </Row>
           )}
           {p.ronda_actual === 2 && (
             <div className="d-flex flex-column gap-2">
               <Row className="g-2">
-                <Col><Button variant="outline-warning" size="lg" className="w-100" onClick={() => handleApuesta('mayor')} disabled={loading}>MAYOR</Button></Col>
-                <Col><Button variant="outline-warning" size="lg" className="w-100" onClick={() => handleApuesta('menor')} disabled={loading}>MENOR</Button></Col>
+                <Col><button className="btn-neon-main w-100 py-3 fw-bold" style={{borderColor: '#ff5500', color: '#ff5500'}} onClick={() => handleApuesta('mayor')} disabled={loading}>MAYOR 👆</button></Col>
+                <Col><button className="btn-neon-main w-100 py-3 fw-bold" style={{borderColor: '#00ff9d', color: '#00ff9d'}} onClick={() => handleApuesta('menor')} disabled={loading}>👇 MENOR</button></Col>
               </Row>
-              <Button variant="outline-light" onClick={() => handleApuesta('igual')} disabled={loading}>¿IGUAL? (X2)</Button>
+              <button className="btn-neon-secondary w-100 py-2 fw-bold" onClick={() => handleApuesta('igual')} disabled={loading}>= IGUAL (x2)</button>
             </div>
           )}
           {p.ronda_actual === 3 && (
             <Row className="g-2">
-              <Col><Button variant="outline-success" size="lg" className="w-100" onClick={() => handleApuesta('adentro')} disabled={loading}>ADENTRO</Button></Col>
-              <Col><Button variant="outline-success" size="lg" className="w-100" onClick={() => handleApuesta('afuera')} disabled={loading}>AFUERA</Button></Col>
+              <Col><button className="btn-neon-main w-100 py-3 fw-bold" style={{borderColor: '#00ff9d', color: '#00ff9d'}} onClick={() => handleApuesta('adentro')} disabled={loading}>📥 ADENTRO</button></Col>
+              <Col><button className="btn-neon-main w-100 py-3 fw-bold" style={{borderColor: '#ff0055', color: '#ff0055'}} onClick={() => handleApuesta('afuera')} disabled={loading}>📤 AFUERA</button></Col>
             </Row>
           )}
         </div>
+      ) : (
+          <div className="animate-pulse text-white-50">Esperando apuesta...</div>
       )}
-    </Card>
+    </div>
   );
 
+  // --- VISTA FASE 2: PIRÁMIDE ---
   const renderPiramide = () => (
-    <div style={{ display: 'flex', flexDirection: 'column-reverse', gap: '10px', alignItems: 'center' }}>
+    <div style={{ display: 'flex', flexDirection: 'column-reverse', gap: '10px', alignItems: 'center' }} className="animate-in zoom-in">
       {[0, 1, 2, 3, 4].map((fIdx) => (
         <div key={fIdx} style={{ display: 'flex', gap: '8px' }}>
           {p.piramide_cartas[fIdx.toString()]?.map((carta: number, cIdx: number) => {
             const revelada = fIdx < p.piramide_estado.fila || (fIdx === p.piramide_estado.fila && cIdx < p.piramide_estado.col);
             const esActual = fIdx === p.piramide_estado.fila && cIdx === p.piramide_estado.col;
             return (
-              <div key={cIdx} style={{
-                width: '45px', height: '65px', backgroundColor: revelada ? 'white' : '#2c3e50',
-                color: revelada ? '#e74c3c' : '#3498db', borderRadius: '6px', display: 'flex',
-                alignItems: 'center', justifyContent: 'center', fontWeight: 'bold',
-                border: esActual ? '3px solid #f1c40f' : '1px solid #34495e'
-              }}>
-                {revelada ? carta : "?"}
+              <div key={cIdx} 
+                   className={`d-flex align-items-center justify-content-center fw-bold rounded shadow-sm ${revelada ? 'flip-in-y' : ''} ${esActual ? 'animate-pulse' : ''}`}
+                   style={{
+                    width: '50px', height: '75px', 
+                    backgroundColor: revelada ? 'white' : 'rgba(0,0,0,0.5)',
+                    color: revelada ? '#e74c3c' : 'transparent',
+                    border: revelada ? '2px solid white' : (esActual ? '2px solid #ff5500' : '1px dashed #555'),
+                    boxShadow: esActual ? '0 0 15px #ff5500' : 'none',
+                    fontSize: '1.2rem',
+                    transition: 'all 0.3s'
+                   }}>
+                {revelada ? carta : ""}
               </div>
             );
           })}
         </div>
       ))}
+      
+      {/* Botón Host */}
       {datos.soyHost && !p.terminado && (
-        <Button variant="warning" className="mt-3 fw-bold" onClick={handleVoltear}>🎴 VOLTEAR SIGUIENTE</Button>
+        <div className="mt-4 mb-2">
+            <button className="btn-neon-main px-5 py-3 fw-bold fs-5" 
+                    style={{borderColor: '#ff5500', color: '#ff5500', boxShadow: '0 0 15px #ff5500'}} 
+                    onClick={handleVoltear}>
+                🎴 VOLTEAR CARTA
+            </button>
+        </div>
       )}
     </div>
   );
 
   return (
     <Container className="min-vh-100 py-4 bg-dark text-white text-center d-flex flex-column align-items-center">
-      <Badge bg="danger" className="mb-4 px-3 py-2 shadow">🔺 LA PIRÁMIDE 🔺</Badge>
+      
+      {/* HEADER */}
+      <div className="mb-4">
+           <h2 className="titulo-neon m-0 fs-1" style={{color: '#ff5500', textShadow: '0 0 10px #ff5500'}}>LA PIRÁMIDE</h2>
+           <small className="text-white-50 ls-2">Fase: {p.fase === "RECOLECCION" ? "APUESTAS" : "REVELACIÓN"}</small>
+      </div>
       
       {p.fase === "RECOLECCION" ? renderRecoleccion() : renderPiramide()}
 
-      <div className="mt-auto p-3 border-top border-secondary w-100" style={{maxWidth: '450px'}}>
-        <p className="text-secondary small mb-2">TU MANO:</p>
-        <div className="d-flex justify-content-center gap-2">
+      {/* FOOTER: CARTAS DEL JUGADOR */}
+      <div className="mt-auto p-3 w-100" style={{maxWidth: '500px'}}>
+        <p className="text-white-50 small mb-2 text-uppercase ls-2">TUS CARTAS:</p>
+        <div className="d-flex justify-content-center gap-2 flex-wrap">
           {misCartas.map((c: number, i: number) => (
-            <div key={i} className="bg-light text-dark fw-bold rounded shadow-sm d-flex align-items-center justify-content-center" style={{ width: '45px', height: '60px' }}>{c}</div>
+            <div key={i} className="bg-white text-dark fw-bold rounded shadow d-flex align-items-center justify-content-center animate-in slide-up" 
+                 style={{ width: '45px', height: '65px', fontSize: '1.1rem', border: '2px solid #ddd', animationDelay: `${i*0.1}s` }}>
+                 {c}
+            </div>
           ))}
+          {misCartas.length === 0 && <span className="text-muted small fst-italic">Aún no tienes cartas...</span>}
         </div>
       </div>
 
-      <div className="mt-4 d-flex flex-column gap-2 w-100" style={{maxWidth: '250px'}}>
+      <div className="mt-4 d-flex flex-column gap-2 w-100" style={{maxWidth: '300px'}}>
         {datos.soyHost && (
-          <Button variant="outline-info" size="sm" onClick={() => api.finalizarJuegoOnline(datos.codigo)}>🔄 ELEGIR OTRO JUEGO</Button>
+          <button className="btn-neon-secondary py-2 fw-bold" onClick={() => api.finalizarJuegoOnline(datos.codigo)}>
+            🔄 ELEGIR OTRO JUEGO
+          </button>
         )}
-        <Button variant="link" className="text-danger text-decoration-none small" onClick={salir}>Abandonar Sala</Button>
+        <button className="btn btn-link text-danger text-decoration-none small" onClick={salir}>Abandonar Sala</button>
       </div>
     </Container>
   );

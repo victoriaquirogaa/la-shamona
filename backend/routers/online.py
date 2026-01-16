@@ -247,7 +247,7 @@ def obtener_estado_sala(codigo: str):
 
 @router.post("/iniciar")
 def iniciar_juego(datos: IniciarJuegoInput):
-    print(f"\n🚀 INICIANDO: {datos.juego}") # Log limpio
+    print(f"\n🚀 INICIANDO: {datos.juego}") 
     
     doc_ref = db.collection('salas_online').document(datos.codigo)
     doc = doc_ref.get()
@@ -258,30 +258,45 @@ def iniciar_juego(datos: IniciarJuegoInput):
     jugadores = sala.get('jugadores', [])
 
     datos_juego = {}
+    fase_inicial = "INICIO" # Variable para controlar la fase según el juego
     
     # --- 1. IMPOSTOR ---
     if datos.juego == 'impostor':
-        # Para probar solo, comentamos la restricción. 
-        # DESCOMENTAR CUANDO TERMINES DE PROBAR:
-        # if len(jugadores) < 3: raise HTTPException(status_code=400, detail="Faltan jugadores")
         datos_juego = preparar_partida_impostor(jugadores, datos.categoria_id)
+        fase_inicial = "RONDA"
 
     # --- 2. VOTACIÓN (Rico/Pobre y Probable) ---
     elif datos.juego == 'rico_pobre' or datos.juego == 'probable':
-        # ¡ELIMINAMOS LAS RESTRICCIONES DE CANTIDAD PARA QUE NO DE ERROR 400!
-        print("   - Preparando votación (Modo Prueba)...")
+        print("   - Preparando votación...")
         datos_juego = preparar_partida_votacion(datos.juego, jugadores)
+        fase_inicial = "VOTACION"
 
+    # --- 3. PIRÁMIDE ---
     elif datos.juego == 'piramide':
         datos_juego = preparar_piramide(jugadores)
-        fase = "JUGANDO"
+        fase_inicial = "RECOLECCION"
 
-    # --- 3. GUARDADO ---
+    # --- 4. LA JEFA (ESTO ES LO QUE FALTABA) ---
+    elif datos.juego == 'la-jefa':
+        print("   - Barajando cartas para La Jefa...")
+        mazo = crear_mazo_nuevo() # Usamos la función auxiliar que ya tenés arriba
+        datos_juego = {
+            "mazo": mazo,
+            "carta_actual": None,
+            "mascotas": {},
+            "resultado_trago": None,
+            "turno_actual": jugadores[0] if jugadores else None,
+            "fase": "ESPERANDO"
+        }
+        fase_inicial = "ESPERANDO"
+
+    # --- 5. GUARDADO ---
     doc_ref.update({
         "estado": "jugando",
         "juego_actual": datos.juego,
         "datos_juego": datos_juego,
-        "fase": "VOTACION"
+        "turno_actual": jugadores[0] if jugadores else None, # Aseguramos el turno en la raíz también
+        "fase": fase_inicial # Usamos la variable dinámica, no "VOTACION" fijo
     })
     
     return {"ok": True}

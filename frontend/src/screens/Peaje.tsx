@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import { Container, Button, Card, Row, Col, Badge } from 'react-bootstrap';
+import { Container, Row, Col } from 'react-bootstrap';
 import { api } from '../lib/api';
+import '../App.css'; // 👈 Importar estilos
 
 interface Props { volver: () => void; }
 
@@ -10,6 +11,7 @@ export const Peaje = ({ volver }: Props) => {
   const [pos, setPos] = useState(0);
   const [mensaje, setMensaje] = useState("¿Mayor o Menor?");
 
+  // --- INICIO DEL JUEGO ---
   useEffect(() => {
     api.crearPartidaPeaje().then(d => {
       setSala(d.id_sala);
@@ -18,6 +20,7 @@ export const Peaje = ({ volver }: Props) => {
     });
   }, []);
 
+  // --- LÓGICA DE JUGADA ---
   const jugar = async (pred: string) => {
     if (!sala) return;
     const d = await api.jugarTurnoPeaje(sala, pred);
@@ -26,69 +29,135 @@ export const Peaje = ({ volver }: Props) => {
     setMensaje(d.mensaje);
   };
 
+  // --- RENDERIZADO DE LAS CASILLAS DEL CAMINO ---
   const renderCasilla = (num: number, tipo: 'normal' | 'peaje' | 'meta') => {
     const active = pos === num;
-    let bg = active ? 'warning' : 'secondary';
-    if (!active && tipo === 'peaje') bg = 'danger';
-    if (!active && tipo === 'meta') bg = 'success';
     
+    // Definimos colores según el tipo
+    let borderColor = 'rgba(255,255,255,0.2)';
+    let bgColor = 'rgba(0,0,0,0.3)';
+    let icon: string | number = num + 1;
+
+    if (tipo === 'peaje') {
+        borderColor = 'var(--neon-pink)';
+        icon = '🛑'; // Icono de Stop
+    }
+    if (tipo === 'meta') {
+        borderColor = '#00ff9d';
+        icon = '🏆';
+    }
+
+    // Estilo si es la posición actual del auto
+    if (active) {
+        borderColor = '#ffd700'; // Dorado
+        bgColor = 'rgba(255, 215, 0, 0.2)';
+        icon = '🏎️';
+    }
+
     return (
-      <div className={`d-flex align-items-center justify-content-center rounded border border-2 border-dark text-white fw-bold shadow ${active ? 'scale-up' : ''}`}
-           style={{ width: '60px', height: '60px', background: `var(--bs-${bg})`, transform: active ? 'scale(1.2)' : 'scale(1)' }}>
-        {active ? '🚗' : (tipo === 'peaje' ? '🛑' : (tipo === 'meta' ? '🏆' : num + 1))}
+      <div 
+        className={`d-flex align-items-center justify-content-center rounded fw-bold position-relative ${active ? 'animate-bounce' : ''}`}
+        style={{ 
+            width: '55px', height: '55px', 
+            border: `2px solid ${borderColor}`,
+            background: bgColor,
+            color: active ? '#ffd700' : 'white',
+            boxShadow: active ? `0 0 15px ${borderColor}` : 'none',
+            fontSize: active ? '1.5rem' : '1rem',
+            transition: 'all 0.3s ease'
+        }}
+      >
+        {icon}
       </div>
     );
   };
 
   return (
-    <Container className="min-vh-100 d-flex flex-column align-items-center py-4 text-center" data-bs-theme="dark">
-      <div className="w-100 d-flex justify-content-between align-items-center mb-4" style={{maxWidth: '600px'}}>
-        <h3 className="text-warning fw-bold m-0">🚧 El Peaje</h3>
-        <Button variant="outline-secondary" size="sm" onClick={volver}>Salir</Button>
+    <Container className="min-vh-100 d-flex flex-column align-items-center py-4 text-center">
+      
+      {/* HEADER */}
+      <div className="w-100 d-flex justify-content-between align-items-center mb-4 px-2" style={{maxWidth: '600px'}}>
+        <div className="titulo-neon m-0 fs-3">EL PEAJE 🚧</div>
+        <button className="btn btn-sm btn-outline-light rounded-pill px-3" onClick={volver}>SALIR</button>
       </div>
 
-      {/* TABLERO 3 PISOS */}
-      <Card className="bg-dark border-secondary p-3 mb-4 w-100" style={{maxWidth: '500px'}}>
-        {/* Piso 1 */}
+      {/* TABLERO (Roadmap) */}
+      <div className="card-shamona p-3 mb-4 w-100 animate-in slide-up" style={{maxWidth: '500px'}}>
+        
+        {/* PISO 1 */}
         <div className="d-flex justify-content-center gap-3 mb-3">
           {renderCasilla(0, 'normal')}
           {renderCasilla(1, 'normal')}
           {renderCasilla(2, 'peaje')}
         </div>
-        {/* Piso 2 */}
+        
+        {/* PISO 2 */}
         <div className="d-flex justify-content-center gap-3 mb-3">
           {renderCasilla(3, 'normal')}
           {renderCasilla(4, 'normal')}
           {renderCasilla(5, 'peaje')}
         </div>
-        {/* Piso 3 */}
+        
+        {/* PISO 3 (META) */}
         <div className="d-flex justify-content-center gap-3 align-items-center">
           {renderCasilla(6, 'normal')}
-          <span className="h2 text-muted m-0">➔</span>
+          <span className="text-white-50 h4 m-0">➔</span>
           {renderCasilla(7, 'meta')}
         </div>
-      </Card>
+
+      </div>
 
       {/* CARTA CENTRAL */}
-      <Card className="bg-white text-dark mb-4 border-4 border-light shadow" style={{ width: '180px', height: '260px' }}>
-        <Card.Body className="d-flex flex-column justify-content-between p-2">
-          <h4 className="text-start text-secondary">{carta}</h4>
-          <h1 className="display-1 fw-bold m-0">{carta}</h1>
-          <h4 className="text-end text-secondary" style={{transform: 'rotate(180deg)'}}>{carta}</h4>
-        </Card.Body>
-      </Card>
+      <div className="mb-4 d-flex justify-content-center w-100">
+        <div className="card-shamona bg-white text-dark position-relative shadow-lg animate-in flip-in-y" 
+             style={{ width: '160px', height: '240px', borderRadius: '10px', border: '5px solid white' }}>
+             
+             <div className="d-flex flex-column justify-content-between h-100 p-2">
+                <h2 className="text-start fw-black m-0 lh-1 text-danger">{carta}</h2>
+                <h1 className="display-3 fw-bold m-0 lh-1">{carta}</h1>
+                <h2 className="text-end fw-black m-0 lh-1 text-danger" style={{transform: 'rotate(180deg)'}}>{carta}</h2>
+             </div>
+        </div>
+      </div>
 
-      <h4 className="text-warning mb-4" style={{minHeight: '30px'}}>{mensaje}</h4>
+      {/* MENSAJE DE ESTADO */}
+      <h3 className="fw-bold mb-4 text-white" style={{textShadow: '0 0 10px rgba(0,0,0,0.5)', minHeight: '30px'}}>
+         {mensaje}
+      </h3>
 
+      {/* CONTROLES */}
       {pos > 6 ? (
-        <Button size="lg" variant="success" onClick={() => window.location.reload()}>JUGAR OTRA VEZ</Button>
+        <button className="btn-neon-main py-3 px-5 fw-bold bg-success border-success text-white" onClick={() => window.location.reload()}>
+            🏆 JUGAR OTRA VEZ
+        </button>
       ) : (
-        <div className="d-flex gap-2 w-100 justify-content-center" style={{maxWidth: '400px'}}>
-          <Button variant="primary" className="flex-grow-1 py-3 fw-bold" onClick={() => jugar('menor')}>👇 MENOR</Button>
-          <Button variant="primary" className="flex-grow-1 py-3 fw-bold" onClick={() => jugar('igual')}>= IGUAL</Button>
-          <Button variant="primary" className="flex-grow-1 py-3 fw-bold" onClick={() => jugar('mayor')}>MAYOR 👆</Button>
+        <div className="d-flex gap-2 w-100 justify-content-center px-3" style={{maxWidth: '450px'}}>
+          <button 
+            className="btn-neon-main flex-grow-1 py-3 fw-bold" 
+            style={{borderColor: 'var(--neon-cyan)', color: 'var(--neon-cyan)'}}
+            onClick={() => jugar('menor')}
+          >
+            👇 MENOR
+          </button>
+          
+          <button 
+            className="btn-neon-secondary flex-grow-1 py-3 fw-bold" 
+            style={{borderColor: 'white', color: 'white'}}
+            onClick={() => jugar('igual')}
+          >
+            = IGUAL
+          </button>
+          
+          <button 
+            className="btn-neon-main flex-grow-1 py-3 fw-bold" 
+            style={{borderColor: 'var(--neon-pink)', color: 'var(--neon-pink)'}}
+            onClick={() => jugar('mayor')}
+          >
+            MAYOR 👆
+          </button>
         </div>
       )}
+
     </Container>
   );
 };
