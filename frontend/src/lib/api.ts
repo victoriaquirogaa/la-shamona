@@ -28,8 +28,13 @@ export const api = {
   crearSalaOnline: async (nombreHost: string) => (await fetch(`${API_URL}/juegos/online/crear`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ nombre_host: nombreHost }) })).json(),
   unirseSalaOnline: async (codigo: string, nombreJugador: string) => (await fetch(`${API_URL}/juegos/online/unirse`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ codigo, nombre_jugador: nombreJugador }) })).json(),
   getSalaOnline: async (codigo: string) => (await fetch(`${API_URL}/juegos/online/estado/${codigo}`)).json(),
-  iniciarJuegoOnline: async (codigo: string, juego: string) => (await fetch(`${API_URL}/juegos/online/iniciar`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ codigo, juego }) })).json(),
-
+  iniciarJuegoOnline: async (codigo: string, juego: string, categoriaId?: string) => {
+        await fetch(`${API_URL}/juegos/online/iniciar`, { // Ojo: endpoint /online/iniciar (no /impostor/iniciar)
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ codigo, juego, categoria_id: categoriaId })
+      });
+    },
   // --- JUGABILIDAD ONLINE ---
   sacarCartaOnline: async (codigo: string) => (await fetch(`${API_URL}/juegos/online/jugada/sacar`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ codigo, juego: 'la-jefa' }) })).json(),
   
@@ -79,5 +84,23 @@ export const api = {
     
     if (!response.ok) throw new Error("Error al repartir cartas");
     return await response.json();
+  },
+
+  votarImpostor: async (codigo: string, votante: string, acusado: string) => {
+    // CAMBIAMOS LA RUTA AQUÍ 👇
+    await fetch(`${API_URL}/juegos/online/votar`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ codigo, votante, acusado })
+    });
+  },
+
+  cambiarFaseImpostor: async (codigo: string, fase: string) => {
+    // TIENE QUE DECIR: /juegos/online/cambiar-fase
+    await fetch(`${API_URL}/juegos/online/cambiar-fase`, { 
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ codigo, fase })
+    });
   }
 };

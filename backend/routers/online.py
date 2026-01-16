@@ -19,6 +19,7 @@ class UnirseSalaInput(BaseModel):
 class IniciarJuegoInput(BaseModel):
     codigo: str
     juego: str
+    categoria_id: str = None # <--- NUEVO CAMPO OPCIONAL
 
 class ReportarTragoInput(BaseModel):
     codigo: str
@@ -109,6 +110,47 @@ def limpiar_salas_viejas():
     except Exception as e:
         print(f"Error en limpieza automática: {e}")
 
+# --- AGREGAR ESTO EN FUNCIONES AUXILIARES ---
+def preparar_partida_impostor(jugadores, categoria_id=None):
+    # 1. Buscamos palabras (Reutilizamos lógica o fallback simple para no romper)
+    try:
+        coleccion = db.collection('categorias_impostor')
+        if categoria_id:
+            doc = coleccion.document(categoria_id).get()
+            data = doc.to_dict() if doc.exists else None
+        else:
+            # Si es aleatoria
+            docs = list(coleccion.stream())
+            if docs:
+                data = random.choice(docs).to_dict()
+            else:
+                data = None
+        
+        if data:
+            titulo = data.get('titulo', 'General')
+            palabras = data.get('palabras', [])
+        else:
+            # Fallback por si la BD falla
+            titulo = "General"
+            palabras = ["Pizza", "Superman", "Guitarra", "Playa", "Messi"]
+
+    except Exception as e:
+        print(f"Error cargando categorias: {e}")
+        titulo = "Error"
+        palabras = ["Error"]
+
+    # 2. Elegimos
+    palabra = random.choice(palabras)
+    impostor = random.choice(jugadores)
+
+    # 3. Retornamos la estructura lista para guardar
+    return {
+        "categoria": titulo,
+        "palabra_secreta": palabra,
+        "impostor": impostor,
+        "votos": {} # Para la fase de votación si la agregamos después
+    }
+
 # --- ENDPOINTS DE LOBBY (CREAR / UNIRSE / ESTADO) ---
 # Estos eran los que faltaban y por eso no creaba la sala
 
@@ -123,10 +165,11 @@ def crear_sala(datos: CrearSalaInput):
 
     # 2. GENERAMOS CÓDIGO (Ya tenés el de 6 letras)
     codigo = generar_codigo() 
+    host_limpio = datos.nombre_host.strip().title() # Forzamos Mayúscula al entrar
     
     # 3. CREAMOS LA SALA CON FECHA (Timestamp)
     nueva_sala = {
-        "host": datos.nombre_host,
+        "host": host_limpio,
         "jugadores": [datos.nombre_host],
         "estado": "esperando",
         "juego_actual": None,
@@ -149,9 +192,11 @@ def unirse_sala(datos: UnirseSalaInput):
         raise HTTPException(status_code=404, detail="¡Esa sala no existe!")
     
     sala = doc.to_dict()
+
+    nombre_limpio = datos.nombre_jugador.strip().title() # Forzamos Mayúscula al entrar
     
-    if datos.nombre_jugador not in sala['jugadores']:
-        sala['jugadores'].append(datos.nombre_jugador)
+    if nombre_limpio not in sala['jugadores']:
+        sala['jugadores'].append(nombre_limpio)
         doc_ref.update({"jugadores": sala['jugadores']})
         
     return {"codigo_sala": datos.codigo, "jugadores": sala['jugadores']}
@@ -168,20 +213,53 @@ def obtener_estado_sala(codigo: str):
 @router.post("/iniciar")
 def iniciar_juego(datos: IniciarJuegoInput):
     doc_ref = db.collection('salas_online').document(datos.codigo)
-    sala = doc_ref.get().to_dict()
+    doc = doc_ref.get()
     
-    doc_ref.update({
+    if not doc.exists:
+        raise HTTPException(status_code=404, detail="Sala no encontrada")
+        
+    sala = doc.to_dict()
+    
+    # DATOS COMUNES DE REINICIO
+    update_data = {
         "estado": "jugando",
-        "juego_actual": "la-jefa",
+        "juego_actual": datos.juego,
+        "fase": "INICIO",
         "turno_actual": sala['jugadores'][0],
-        "fase": "ESPERANDO",
-        "datos_juego": {
+        # Limpiamos datos viejos por si juegan de nuevo
+        "datos_juego": {} 
+    }
+
+    # --- LÓGICA SEGÚN JUEGO ---
+    if datos.juego == 'la-jefa':
+        update_data["datos_juego"] = {
             "mazo": crear_mazo_nuevo(),
             "carta_actual": None,
             "mascotas": {}, 
             "resultado_trago": None
         }
-    })
+        update_data["fase"] = "ESPERANDO"
+
+    elif datos.juego == 'impostor':
+        # Validar Mínimo 3 en el Backend también (Seguridad)
+        if len(sala['jugadores']) < 3:
+             raise HTTPException(status_code=400, detail="Se necesitan mínimo 3 jugadores para el Impostor")
+
+        # Pasamos la categoría elegida
+        datos_impostor = preparar_partida_impostor(sala['jugadores'], datos.categoria_id)
+        
+        # Agregamos campos vacíos para la lógica de votación
+        datos_impostor['votos'] = {}
+        datos_impostor['eliminados'] = []
+        datos_impostor['ganador'] = None
+        
+        update_data["datos_juego"] = datos_impostor
+        update_data["fase"] = "RONDA"
+
+    else:
+        raise HTTPException(status_code=400, detail="Juego no reconocido")
+
+    doc_ref.update(update_data)
     return {"ok": True}
 
 @router.post("/jugada/sacar")
@@ -302,4 +380,116 @@ def toman_todos(datos: IniciarJuegoInput):
             "mensaje": "¡TOMAN TODOS!"
         }
     })
+    return {"ok": True}
+
+# --- PEGAR AL FINAL DE backend/routers/online.py ---
+
+class VotoInput(BaseModel):
+    codigo: str
+    votante: str
+    acusado: str
+
+@router.post("/votar")
+def emitir_voto(datos: VotoInput):
+    # 1. Limpieza de nombres
+    votante_limpio = datos.votante.strip().title()
+    acusado_limpio = datos.acusado.strip().title()
+
+    print(f"\n📩 VOTO ENTRANTE: {votante_limpio} -> {acusado_limpio}")
+
+    doc_ref = db.collection('salas_online').document(datos.codigo)
+    doc = doc_ref.get()
+    
+    if not doc.exists:
+        raise HTTPException(status_code=404, detail="Sala no encontrada")
+    
+    sala = doc.to_dict()
+    datos_juego = sala.get('datos_juego', {})
+    eliminados = datos_juego.get('eliminados', [])
+    
+    # 2. Obtener lista de vivos (sin duplicados)
+    raw_players = [j for j in sala['jugadores'] if j not in eliminados]
+    jugadores_vivos = list(set([j.strip().title() for j in raw_players]))
+    
+    if votante_limpio not in jugadores_vivos:
+        print(f"⚠️ Rechazado: {votante_limpio} no está vivo.")
+        return {"ok": False, "error": "No estás vivo"}
+
+    # --- 3. GUARDADO BLINDADO (La Solución) ---
+    # En lugar de reescribir todo 'votos', actualizamos SOLO el campo de este jugador.
+    # Esto evita que se borren votos si dos personas votan rápido.
+    
+    # Primero guardamos este voto específico
+    doc_ref.update({
+        f"datos_juego.votos.{votante_limpio}": acusado_limpio
+    })
+    
+    # --- 4. LEEMOS DE NUEVO PARA VER EL TOTAL REAL ---
+    # (Como acabamos de escribir, leemos de nuevo para tener la foto completa)
+    doc_actualizado = doc_ref.get().to_dict()
+    votos_actuales = doc_actualizado['datos_juego'].get('votos', {})
+    
+    cantidad_votos = len(votos_actuales)
+    total_vivos = len(jugadores_vivos)
+    
+    print(f"📊 ESTADO ACTUAL: {cantidad_votos}/{total_vivos} votos.")
+    print(f"   - Votos registrados: {list(votos_actuales.keys())}")
+
+    # --- 5. VERIFICAR FIN DE RONDA ---
+    if cantidad_votos >= total_vivos:
+        print("✅ ¡RONDA TERMINADA! Calculando eliminado...")
+        
+        conteo = {}
+        for ac in votos_actuales.values():
+            conteo[ac] = conteo.get(ac, 0) + 1
+            
+        eliminado = max(conteo, key=conteo.get)
+        eliminados.append(eliminado)
+        
+        # Chequear ganador
+        impostor = datos_juego['impostor']
+        nuevos_vivos = [j for j in sala['jugadores'] if j not in eliminados]
+        ganador = None
+        mensaje = ""
+        
+        if eliminado == impostor:
+            ganador = "CIUDADANOS"
+            mensaje = f"¡Atraparon al Impostor! Era {impostor}."
+        elif len(nuevos_vivos) <= 2:
+            ganador = "IMPOSTOR"
+            mensaje = "¡El Impostor ganó! Quedan 2 personas."
+            
+        doc_ref.update({
+            "datos_juego.eliminados": eliminados,
+            "fase": "RESULTADO_VOTACION" if not ganador else "FIN_PARTIDA",
+            "datos_juego.ultimo_eliminado": eliminado,
+            "datos_juego.ganador": ganador,
+            "datos_juego.mensaje_final": mensaje
+        })
+        return {"ok": True, "estado": "RONDA_FINALIZADA"}
+    
+    return {
+        "ok": True, 
+        "estado": "VOTO_GUARDADO", 
+        "faltan": [j for j in jugadores_vivos if j not in votos_actuales]
+    }
+
+class FaseInput(BaseModel):
+    codigo: str
+    fase: str
+
+@router.post("/cambiar-fase")
+def cambiar_fase(datos: FaseInput):
+    print(f"🔄 CAMBIANDO FASE: Sala {datos.codigo} -> {datos.fase}")
+    
+    doc_ref = db.collection('salas_online').document(datos.codigo)
+    
+    # Preparamos la actualización
+    update_data = {"fase": datos.fase}
+    
+    # Si volvemos a RONDA (al reiniciar o seguir jugando), limpiamos los votos
+    if datos.fase == "RONDA":
+         update_data["datos_juego.votos"] = {}
+         
+    doc_ref.update(update_data)
     return {"ok": True}

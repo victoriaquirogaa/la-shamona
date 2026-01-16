@@ -145,3 +145,5 @@ def obtener_mision(id_sala: str, nombre_jugador: str):
         return {"rol": "IMPOSTOR", "descripcion": "Engaña a todos.", "palabra": "???"}
     else:
         return {"rol": "CIUDADANO", "descripcion": f"Palabra: {data['palabra_secreta']}", "palabra": data['palabra_secreta']}
+    
+# --- AGREGAR AL FINAL DE backend/routers/impostor.py ---
