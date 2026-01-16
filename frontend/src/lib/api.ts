@@ -102,5 +102,22 @@ export const api = {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ codigo, fase })
     });
-  }
-};
+  },
+
+  votarEncuesta: async (codigo: string, votante: string, opcion: string) => {
+    // Apunta al endpoint nuevo que creamos en el backend
+    await fetch(`${API_URL}/juegos/online/votar-encuesta`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ codigo, votante, opcion })
+    });
+  },
+
+  terminarJuego: async (codigo: string) => {
+    return fetch(`${API_URL}/juegos/online/terminar`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ codigo, juego: "reset" }),
+    }).then(r => r.json());
+  },
+}

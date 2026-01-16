@@ -3,8 +3,13 @@ import { Container, Row, Col, Card, Button, Form, Alert, Badge, Modal, Spinner }
 import Swal from 'sweetalert2';
 import { api } from '../lib/api';
 
+// --- IMPORTS DE LOS JUEGOS ---
+import { ImpostorOnline } from './ImpostorOnline'; // Asegurate de tener este
+import { VotacionOnline } from './VotacionOnline'; // Y este nuevo
+
 interface Props {
   volver: () => void;
+  // Ya no dependemos tanto de esta prop si renderizamos acá mismo, pero la dejamos por compatibilidad
   onJuegoIniciado: (juego: string, codigoSala: string, soyHost: boolean, miNombre: string) => void; 
 }
 
@@ -20,29 +25,43 @@ export const MenuOnline = ({ volver, onJuegoIniciado }: Props) => {
   const [catSeleccionada, setCatSeleccionada] = useState("");
   const [loadingCats, setLoadingCats] = useState(false);
 
-  // --- SYNC ---
+  // --- SYNC MEJORADO ---
   useEffect(() => {
     let intervalo: any;
     if (salaActiva) {
       intervalo = setInterval(async () => {
         try {
           const data = await api.getSalaOnline(salaActiva.codigo);
-          if (data?.jugadores) setSalaActiva((prev: any) => prev ? { ...prev, jugadores: data.jugadores } : null);
           
-          if (data?.juego_actual && data.estado === 'jugando') {
-             const soyHost = data.jugadores[0] === nombre;
-             onJuegoIniciado(data.juego_actual, salaActiva.codigo, soyHost, nombre);
+          // Actualizamos TODO el estado de la sala (importante para saber si jugamos)
+          if (data) {
+              setSalaActiva((prev: any) => ({
+                  ...prev,
+                  jugadores: data.jugadores,
+                  estado: data.estado,           // <--- Agregamos esto
+                  juego_actual: data.juego_actual // <--- Y esto
+              }));
+
+              // (Opcional) Avisar al padre, aunque ahora manejamos la vista acá
+              if (data.estado === 'jugando') {
+                  const soyHost = data.jugadores[0] === nombre;
+                  onJuegoIniciado(data.juego_actual, salaActiva.codigo, soyHost, nombre);
+              }
           }
         } catch (e) { console.error("Sync error"); }
       }, 2000);
     }
     return () => clearInterval(intervalo);
-  }, [salaActiva, nombre, onJuegoIniciado]);
+  }, [salaActiva?.codigo, nombre, onJuegoIniciado]); // Ojo con las dependencias
 
   // --- HELPERS ---
   const mostrarAlerta = (icono: any, titulo: string, texto: string) => {
       Swal.fire({ icon: icono, title: titulo, text: texto, background: '#212529', color: '#fff', confirmButtonColor: '#dc3545' });
   }
+  
+  const salirDeLaSala = () => {
+      setSalaActiva(null); // Volvemos al lobby de crear/unirse
+  };
 
   const handleCrear = async () => {
     if (!nombre.trim()) return mostrarAlerta('warning', '¡Falta el nombre!', 'Ponete un nombre.');
@@ -67,20 +86,19 @@ export const MenuOnline = ({ volver, onJuegoIniciado }: Props) => {
 
   // --- LÓGICA DE INICIO DE JUEGOS ---
   
-  // 1. LA JEFA (Directo)
+  // 1. LA JEFA
   const iniciarLaJefa = async () => {
       if (!salaActiva) return;
       await api.iniciarJuegoOnline(salaActiva.codigo, 'la-jefa');
   };
 
-  // 2. IMPOSTOR (Abre Modal)
+  // 2. IMPOSTOR
   const abrirConfigImpostor = async () => {
       if (salaActiva.jugadores.length < 3) {
           return mostrarAlerta('warning', 'Faltan jugadores', 'Para el Impostor necesitan ser mínimo 3 personas.');
       }
       setShowModalImpostor(true);
       setLoadingCats(true);
-      // Cargamos categorías
       const cats = await api.getCategoriasImpostor();
       setCategorias(cats);
       setLoadingCats(false);
@@ -88,26 +106,86 @@ export const MenuOnline = ({ volver, onJuegoIniciado }: Props) => {
 
   const iniciarImpostorConfirmado = async () => {
       if (!salaActiva) return;
-      
-      // 1. Activamos spinner de carga (reutilizamos loadingCats o creamos uno local si querés)
       setLoadingCats(true); 
-
       try {
           const catId = catSeleccionada === "" ? undefined : catSeleccionada;
-          
-          // 2. Enviamos la orden
           await api.iniciarJuegoOnline(salaActiva.codigo, 'impostor', catId);
-          
-          // 3. ¡IMPORTANTE! Cerramos el modal para que veas el cambio de pantalla
           setShowModalImpostor(false); 
-          
       } catch (e) {
           mostrarAlerta('error', 'Error al iniciar', 'Hubo un problema comunicando con el servidor.');
       }
-      
       setLoadingCats(false);
   };
-  // --- VISTAS ---
+
+  // 3. RICO O POBRE (NUEVO)
+  const iniciarRicoPobre = async () => {
+      if (!salaActiva) return;
+      await api.iniciarJuegoOnline(salaActiva.codigo, 'rico_pobre');
+  };
+
+  // 4. QUIEN ES MAS PROBABLE (NUEVO)
+  const iniciarProbable = async () => {
+      if (!salaActiva) return;
+      if (salaActiva.jugadores.length < 2) {
+          return mostrarAlerta('warning', 'Faltan jugadores', 'Necesitan ser mínimo 2 personas.');
+      }
+      await api.iniciarJuegoOnline(salaActiva.codigo, 'probable');
+  };
+
+  // --- VISTAS DEL JUEGO ACTIVO ---
+  // Si la sala está en estado 'jugando', mostramos el componente del juego en vez del lobby
+  // --- VISTAS DEL JUEGO ACTIVO ---
+  // Si la sala está en estado 'jugando', el MenuOnline desaparece y muestra el juego
+
+  // 👇 AGREGÁ ESTA FUNCIÓN NUEVA
+  const volverAlLobby = async () => {
+      if (!salaActiva) return;
+      // Llamamos al backend para que resetee el estado a "esperando"
+      await api.terminarJuego(salaActiva.codigo);
+  };
+
+ // --- VISTAS DEL JUEGO ACTIVO ---
+  // Si la sala está en estado 'jugando', el MenuOnline desaparece y muestra el juego
+  if (salaActiva?.estado === 'jugando') {
+      const soyHost = salaActiva.jugadores[0] === nombre;
+      const juego = salaActiva.juego_actual;
+
+      // Definimos qué hace el botón salir:
+      // Si soy Host -> Reseteo la sala para todos (volverAlLobby)
+      // Si soy Invitado -> Me salgo yo solo (salirDeLaSala)
+      const accionSalir = soyHost ? volverAlLobby : salirDeLaSala;
+
+      // 1. Si es IMPOSTOR
+      if (juego === 'impostor') {
+          return <ImpostorOnline datos={{ codigo: salaActiva.codigo, soyHost, nombre }} salir={accionSalir} />;
+      }
+      
+      // 2. Si es RICO/POBRE o PROBABLE
+      if (juego === 'rico_pobre' || juego === 'probable') {
+          return (
+              <VotacionOnline 
+                  datos={{
+                      codigo: salaActiva.codigo,
+                      soyHost,
+                      nombre: nombre,
+                      juego: juego 
+                  }} 
+                  salir={accionSalir} // <--- Acá usamos la acción inteligente
+              />
+          );
+      }
+      
+      // 3. Error
+      return (
+          <Container className="pt-5 text-white text-center">
+              <h1>⚠️ Error de Conexión</h1>
+              <p>El juego "{juego}" no tiene pantalla asignada.</p>
+              <Button onClick={salirDeLaSala}>Salir</Button>
+          </Container>
+      );
+  }
+
+  // --- VISTA LOBBY (SALA DE ESPERA) ---
   if (salaActiva) {
       const soyHost = salaActiva.jugadores[0] === nombre;
       const faltanJugadores = salaActiva.jugadores.length < 3;
@@ -136,6 +214,7 @@ export const MenuOnline = ({ volver, onJuegoIniciado }: Props) => {
                 <div className="w-100" style={{maxWidth: '400px'}}>
                     <Alert variant="info" className="fw-bold">👑 Host: Elige juego</Alert>
                     <div className="d-grid gap-3">
+                        {/* BOTONES EXISTENTES */}
                         <Button variant="danger" size="lg" className="fw-bold py-3" onClick={iniciarLaJefa}>
                             👠 LA JEFA
                         </Button>
@@ -146,7 +225,20 @@ export const MenuOnline = ({ volver, onJuegoIniciado }: Props) => {
                             style={faltanJugadores ? {opacity: 0.6} : {}}
                         >
                             🕵️‍♂️ IMPOSTOR
-                            {faltanJugadores && <div className="small text-danger fw-bold">(Mínimo 3 jugadores)</div>}
+                            {faltanJugadores && <div className="small text-danger fw-bold">(Mínimo 3)</div>}
+                        </Button>
+
+                        {/* --- BOTONES NUEVOS --- */}
+                        <Button variant="warning" size="lg" className="fw-bold py-3 text-dark" onClick={iniciarRicoPobre}>
+                             💰 MUY DE RICO / POBRE
+                        </Button>
+
+                        <Button 
+                            variant="primary" size="lg" className="fw-bold py-3" 
+                            onClick={iniciarProbable}
+                            style={salaActiva.jugadores.length < 2 ? {opacity: 0.6} : {}}
+                        >
+                             👉 QUIÉN ES MÁS PROBABLE
                         </Button>
                     </div>
                 </div>
@@ -156,7 +248,7 @@ export const MenuOnline = ({ volver, onJuegoIniciado }: Props) => {
                 </div>
             )}
 
-            {/* MODAL SELECCIÓN CATEGORÍA */}
+            {/* MODAL SELECCIÓN CATEGORÍA (IMPOSTOR) */}
             <Modal show={showModalImpostor} onHide={() => setShowModalImpostor(false)} centered contentClassName="bg-dark text-white border-info">
                 <Modal.Header closeButton closeVariant="white">
                     <Modal.Title>Configurar Impostor 🕵️‍♂️</Modal.Title>
@@ -180,21 +272,10 @@ export const MenuOnline = ({ volver, onJuegoIniciado }: Props) => {
                 </Modal.Body>
                 <Modal.Footer className="border-0">
                     <Button variant="link" className="text-white" onClick={() => setShowModalImpostor(false)}>Cancelar</Button>
-                    {/* BOTÓN MEJORADO */}
                     <Button 
-                        variant="info" 
-                        className="fw-bold px-4" 
-                        onClick={iniciarImpostorConfirmado}
-                        disabled={loadingCats} // Se bloquea al tocar
+                        variant="info" className="fw-bold px-4" onClick={iniciarImpostorConfirmado} disabled={loadingCats}
                     >
-                        {loadingCats ? (
-                            <>
-                                <Spinner as="span" animation="border" size="sm" role="status" aria-hidden="true" className="me-2"/>
-                                Iniciando...
-                            </>
-                        ) : (
-                            "¡COMENZAR PARTIDA!"
-                        )}
+                        {loadingCats ? "Iniciando..." : "¡COMENZAR PARTIDA!"}
                     </Button>
                 </Modal.Footer>
             </Modal>
@@ -203,7 +284,7 @@ export const MenuOnline = ({ volver, onJuegoIniciado }: Props) => {
       );
   }
 
-  // VISTA LOGIN (IGUAL QUE ANTES)
+  // VISTA LOGIN
   return (
     <Container className="min-vh-100 py-4 d-flex flex-column bg-dark text-white">
       <div className="d-flex align-items-center mb-5">
@@ -212,19 +293,15 @@ export const MenuOnline = ({ volver, onJuegoIniciado }: Props) => {
       </div>
       <div className="flex-grow-1 d-flex flex-column justify-content-center align-items-center">
         <Form.Control 
-            size="lg" 
-            type="text" 
-            placeholder="Ej: Tincho" 
+            size="lg" type="text" placeholder="Ej: Tincho" 
             className="bg-dark text-white border-secondary fw-bold text-center"
             value={nombre} 
-            // AGREGÁ ESTA MAGIA 👇
             onChange={(e) => {
                 const val = e.target.value;
-                // Pone la primera mayúscula automáticamente
                 setNombre(val.charAt(0).toUpperCase() + val.slice(1));
             }}
         />
-        <Row className="g-4 w-100" style={{maxWidth: '600px'}}>
+        <Row className="g-4 w-100 mt-2" style={{maxWidth: '600px'}}>
             <Col md={6}>
                 <Button variant="success" size="lg" className="w-100 py-5 fw-bold fs-4" onClick={handleCrear} disabled={loading}>
                     👑 CREAR SALA

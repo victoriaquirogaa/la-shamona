@@ -30,6 +30,11 @@ class AsignarPutaInput(BaseModel):
     dueno: str
     esclavo: str
 
+class VotoEncuestaInput(BaseModel):
+    codigo: str
+    votante: str
+    opcion: str
+
 # --- CONFIGURACIÓN DE REGLAS (Tu lista) ---
 REGLAS_JUEGO = {
     "1":  {"texto": "TOMAS VOS (Y tus putas)", "accion": "AUTO_TRAGO"},
@@ -212,54 +217,39 @@ def obtener_estado_sala(codigo: str):
 
 @router.post("/iniciar")
 def iniciar_juego(datos: IniciarJuegoInput):
+    print(f"\n🚀 INICIANDO: {datos.juego}") # Log limpio
+    
     doc_ref = db.collection('salas_online').document(datos.codigo)
     doc = doc_ref.get()
     
-    if not doc.exists:
-        raise HTTPException(status_code=404, detail="Sala no encontrada")
-        
-    sala = doc.to_dict()
+    if not doc.exists: raise HTTPException(status_code=404, detail="Sala no encontrada")
     
-    # DATOS COMUNES DE REINICIO
-    update_data = {
+    sala = doc.to_dict()
+    jugadores = sala.get('jugadores', [])
+
+    datos_juego = {}
+    
+    # --- 1. IMPOSTOR ---
+    if datos.juego == 'impostor':
+        # Para probar solo, comentamos la restricción. 
+        # DESCOMENTAR CUANDO TERMINES DE PROBAR:
+        # if len(jugadores) < 3: raise HTTPException(status_code=400, detail="Faltan jugadores")
+        datos_juego = preparar_partida_impostor(jugadores, datos.categoria_id)
+
+    # --- 2. VOTACIÓN (Rico/Pobre y Probable) ---
+    elif datos.juego == 'rico_pobre' or datos.juego == 'probable':
+        # ¡ELIMINAMOS LAS RESTRICCIONES DE CANTIDAD PARA QUE NO DE ERROR 400!
+        print("   - Preparando votación (Modo Prueba)...")
+        datos_juego = preparar_partida_votacion(datos.juego, jugadores)
+
+    # --- 3. GUARDADO ---
+    doc_ref.update({
         "estado": "jugando",
         "juego_actual": datos.juego,
-        "fase": "INICIO",
-        "turno_actual": sala['jugadores'][0],
-        # Limpiamos datos viejos por si juegan de nuevo
-        "datos_juego": {} 
-    }
-
-    # --- LÓGICA SEGÚN JUEGO ---
-    if datos.juego == 'la-jefa':
-        update_data["datos_juego"] = {
-            "mazo": crear_mazo_nuevo(),
-            "carta_actual": None,
-            "mascotas": {}, 
-            "resultado_trago": None
-        }
-        update_data["fase"] = "ESPERANDO"
-
-    elif datos.juego == 'impostor':
-        # Validar Mínimo 3 en el Backend también (Seguridad)
-        if len(sala['jugadores']) < 3:
-             raise HTTPException(status_code=400, detail="Se necesitan mínimo 3 jugadores para el Impostor")
-
-        # Pasamos la categoría elegida
-        datos_impostor = preparar_partida_impostor(sala['jugadores'], datos.categoria_id)
-        
-        # Agregamos campos vacíos para la lógica de votación
-        datos_impostor['votos'] = {}
-        datos_impostor['eliminados'] = []
-        datos_impostor['ganador'] = None
-        
-        update_data["datos_juego"] = datos_impostor
-        update_data["fase"] = "RONDA"
-
-    else:
-        raise HTTPException(status_code=400, detail="Juego no reconocido")
-
-    doc_ref.update(update_data)
+        "datos_juego": datos_juego,
+        "fase": "VOTACION"
+    })
+    
     return {"ok": True}
 
 @router.post("/jugada/sacar")
@@ -492,4 +482,112 @@ def cambiar_fase(datos: FaseInput):
          update_data["datos_juego.votos"] = {}
          
     doc_ref.update(update_data)
+    return {"ok": True}
+
+# --- FUNCIÓN ACTUALIZADA: Acepta el nombre del campo ---
+def obtener_pregunta_config(nombre_documento, nombre_campo):
+    try:
+        doc_ref = db.collection('configuracion_juegos').document(nombre_documento)
+        doc = doc_ref.get()
+        
+        if not doc.exists:
+            print(f"⚠️ Documento '{nombre_documento}' no existe.")
+            return "Error: Falta configuración"
+            
+        data = doc.to_dict()
+        
+        # Leemos el campo específico que nos pidas ('frases' o 'preguntas')
+        lista = data.get(nombre_campo, [])
+        
+        if not lista:
+            print(f"⚠️ El campo '{nombre_campo}' está vacío en '{nombre_documento}'")
+            return f"Error: Lista '{nombre_campo}' vacía"
+            
+        import random
+        return random.choice(lista)
+
+    except Exception as e:
+        print(f"Error DB: {e}")
+        return "Error técnico"
+
+# --- FUNCIÓN DE PREPARACIÓN ---
+def preparar_partida_votacion(modo, jugadores):
+    pregunta = "Error"
+    opciones = []
+    titulo = ""
+
+    if modo == 'rico_pobre':
+        # Rico/Pobre usa el campo 'frases'
+        pregunta = obtener_pregunta_config('rico_pobre', 'frases')
+        opciones = ["Muy de Rico", "Muy de Pobre"]
+        titulo = "Muy de Rico o Muy de Pobre"
+    
+    elif modo == 'probable':
+        # Probable usa el documento 'votacion' y el campo 'preguntas'
+        pregunta = obtener_pregunta_config('votacion', 'preguntas')
+        opciones = jugadores 
+        titulo = "¿Quién es más probable que...?"
+    
+    return {
+        "modo": modo, 
+        "titulo": titulo,
+        "consigna": pregunta, 
+        "opciones": opciones,
+        "votos": {},       
+        "resultados": {},
+        "terminado": False
+    }
+
+@router.post("/votar-encuesta")
+def votar_encuesta(datos: VotoEncuestaInput):
+    print(f"📩 Voto Encuesta: {datos.votante} -> {datos.opcion}")
+    
+    doc_ref = db.collection('salas_online').document(datos.codigo)
+    doc = doc_ref.get()
+    if not doc.exists: raise HTTPException(status_code=404, detail="Sala no existe")
+    
+    # Guardamos el voto de este jugador
+    doc_ref.update({
+        f"datos_juego.votos.{datos.votante}": datos.opcion
+    })
+    
+    # Leemos para ver si ya votaron todos
+    sala_actualizada = doc_ref.get().to_dict()
+    votos = sala_actualizada['datos_juego'].get('votos', {})
+    jugadores = sala_actualizada.get('jugadores', [])
+    
+    if len(votos) >= len(jugadores):
+        print("🏁 Encuesta terminada. Calculando resultados...")
+        conteo = {}
+        # Inicializamos los contadores con las opciones disponibles
+        opciones = sala_actualizada['datos_juego'].get('opciones', [])
+        for op in opciones: conteo[op] = 0
+            
+        # Contamos los votos reales
+        for v in votos.values():
+            conteo[v] = conteo.get(v, 0) + 1
+            
+        # Marcamos como terminado para que el Frontend muestre los gráficos
+        doc_ref.update({
+            "datos_juego.terminado": True,
+            "datos_juego.resultados": conteo
+        })
+        
+    return {"ok": True}
+
+@router.post("/terminar")
+def terminar_juego(datos: IniciarJuegoInput):
+    # Validamos que exista la sala
+    doc_ref = db.collection('salas_online').document(datos.codigo)
+    doc = doc_ref.get()
+    if not doc.exists: return {"ok": False}
+    
+    # Reseteamos la sala al estado de Lobby
+    doc_ref.update({
+        "estado": "esperando",     # Vuelve al lobby
+        "juego_actual": None,      # Limpia el juego
+        "fase": None,
+        "datos_juego": {},          # Borra los votos/cartas
+        "turno_actual": None
+    })
     return {"ok": True}
