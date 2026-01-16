@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { Container, Button, Card, ButtonGroup, Badge } from 'react-bootstrap';
+import { Container, Spinner } from 'react-bootstrap';
 import { api } from '../lib/api';
+import '../App.css'; // 👈 Importar estilos
 
 interface Props {
   juego: 'yo-nunca' | 'votacion' | 'preguntas';
@@ -9,63 +10,144 @@ interface Props {
 
 export const JuegoSimple = ({ juego, volver }: Props) => {
   const [modo, setModo] = useState<string | null>(null);
-  const [frase, setFrase] = useState("Presiona Siguiente");
+  const [frase, setFrase] = useState("Presioná Siguiente para arrancar");
   const [loading, setLoading] = useState(false);
 
-  // Configuración según juego
-  const config = {
-    'yo-nunca': { titulo: 'Yo Nunca 🍺', color: 'primary', opciones: [{id: 'gratis', label: 'Gratis'}] },
-    'votacion': { titulo: 'Votación 👉', color: 'info', opciones: [{id: 'gratis', label: '¿Quién es?'}, {id: 'rico_pobre', label: 'Rico/Pobre'}] },
-    'preguntas': { titulo: 'Preguntas 🤔', color: 'warning', opciones: [{id: 'polemicas', label: 'Polémicas'}, {id: 'profundas', label: 'Profundas'}] }
+  // CONFIGURACIÓN VISUAL POR JUEGO
+  // Acá definimos título, color de neón y las opciones disponibles
+  const config: any = {
+    'yo-nunca': { 
+        titulo: 'YO NUNCA', 
+        icono: '🍺',
+        color: '#00d4ff', // Cyan
+        opciones: [{id: 'gratis', label: 'MODO CLÁSICO'}] 
+    },
+    'votacion': { 
+        titulo: 'VOTACIÓN', 
+        icono: '👉',
+        color: '#bd00ff', // Violeta
+        opciones: [{id: 'gratis', label: '¿QUIÉN ES?'}, {id: 'rico_pobre', label: 'RICO O POBRE'}] 
+    },
+    'preguntas': { 
+        titulo: 'PREGUNTAS', 
+        icono: '🤔',
+        color: '#ffd700', // Dorado
+        opciones: [{id: 'polemicas', label: 'POLÉMICAS'}, {id: 'profundas', label: 'PROFUNDAS'}] 
+    }
   }[juego];
 
   const sacarCarta = async (categoria: string) => {
     setLoading(true);
     let data;
-    if (juego === 'yo-nunca') data = await api.getFraseYoNunca(categoria);
-    else if (juego === 'votacion') data = await api.getFraseVotacion(categoria);
-    else if (juego === 'preguntas') data = await api.getPregunta(categoria);
-    
-    setFrase(data?.texto || "Error de conexión");
+    try {
+        if (juego === 'yo-nunca') data = await api.getFraseYoNunca(categoria);
+        else if (juego === 'votacion') data = await api.getFraseVotacion(categoria);
+        else if (juego === 'preguntas') data = await api.getPregunta(categoria);
+        
+        setFrase(data?.texto || "Error de conexión con el servidor.");
+    } catch (e) {
+        setFrase("Error al buscar frase. Intenta de nuevo.");
+    }
     setLoading(false);
   };
 
-  // VISTA 1: Elegir Modo
+  // --- VISTA 1: ELEGIR MODO ---
   if (!modo) {
     return (
-      <Container className="d-flex flex-col justify-content-center align-items-center min-vh-100 text-center" data-bs-theme="dark">
-        <h1 className={`text-${config.color} mb-5`}>{config.titulo}</h1>
-        <div className="d-grid gap-3 col-10 col-md-6 mx-auto">
-          {config.opciones.map(op => (
-            <Button key={op.id} variant={`outline-${config.color}`} size="lg" onClick={() => { setModo(op.id); sacarCarta(op.id); }}>
+      <Container className="d-flex flex-column justify-content-center align-items-center min-vh-100 text-center p-4">
+        
+        <div className="mb-5 animate-in fade-in">
+            <div style={{fontSize: '4rem'}} className="mb-2">{config.icono}</div>
+            <h1 className="titulo-neon m-0" style={{
+                background: `linear-gradient(90deg, ${config.color}, #ffffff)`,
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                textShadow: `0 0 20px ${config.color}50` // 50 es transparencia hex
+            }}>
+                {config.titulo}
+            </h1>
+        </div>
+
+        <div className="d-grid gap-3 w-100 animate-in slide-up" style={{maxWidth: '400px'}}>
+          {config.opciones.map((op: any) => (
+            <button 
+                key={op.id} 
+                className="btn-neon-main py-3 fw-bold fs-5"
+                style={{borderColor: config.color, color: config.color}} 
+                onClick={() => { setModo(op.id); sacarCarta(op.id); }}
+            >
               {op.label}
-            </Button>
+            </button>
           ))}
-          <Button variant="link" className="text-muted mt-3" onClick={volver}>Volver</Button>
+          
+          <button className="btn btn-link text-white-50 mt-3 text-decoration-none" onClick={volver}>
+             🡠 Volver al menú
+          </button>
         </div>
       </Container>
     );
   }
 
-  // VISTA 2: Tarjeta
+  // --- VISTA 2: TARJETA DE JUEGO ---
   return (
-    <Container className="d-flex flex-col justify-content-center align-items-center min-vh-100 text-center" data-bs-theme="dark">
-      <div className="d-flex justify-content-between w-100 px-3 mb-4 absolute top-0 mt-4">
-         <Badge bg={config.color} className="text-dark">{config.titulo}</Badge>
-         <Button variant="link" size="sm" className="text-muted" onClick={() => setModo(null)}>Cambiar Modo</Button>
+    <Container className="d-flex flex-column justify-content-center align-items-center min-vh-100 text-center p-4">
+      
+      {/* HEADER SIMPLE */}
+      <div className="w-100 d-flex justify-content-between align-items-center mb-4 px-2 absolute-top-md" style={{maxWidth: '600px'}}>
+         <div className="d-flex align-items-center gap-2">
+             <span className="fs-4">{config.icono}</span>
+             <span className="fw-bold text-uppercase" style={{color: config.color, letterSpacing: '2px'}}>{config.titulo}</span>
+         </div>
+         <button className="btn btn-sm btn-outline-light rounded-pill px-3" onClick={() => setModo(null)}>CAMBIAR</button>
       </div>
 
-      <Card className={`w-100 shadow-lg border-${config.color} bg-dark text-white`} style={{ maxWidth: '500px', minHeight: '300px' }}>
-        <Card.Body className="d-flex align-items-center justify-content-center p-5">
-           <h2 className="fw-bold">{loading ? 'Cargando...' : frase}</h2>
-        </Card.Body>
-      </Card>
+      {/* TARJETA PRINCIPAL */}
+      <div 
+        className="card-shamona w-100 shadow-lg d-flex align-items-center justify-content-center p-4 p-md-5 mb-5 position-relative animate-in zoom-in" 
+        style={{ 
+            maxWidth: '500px', 
+            minHeight: '350px', 
+            border: `1px solid ${config.color}`,
+            background: 'rgba(0,0,0,0.4)' // Un poco más oscuro para leer bien el texto
+        }}
+      >
+        {/* Decoración de esquinas */}
+        <div className="position-absolute top-0 start-0 m-2 border-top border-start" style={{width: '20px', height: '20px', borderColor: config.color}}/>
+        <div className="position-absolute top-0 end-0 m-2 border-top border-end" style={{width: '20px', height: '20px', borderColor: config.color}}/>
+        <div className="position-absolute bottom-0 start-0 m-2 border-bottom border-start" style={{width: '20px', height: '20px', borderColor: config.color}}/>
+        <div className="position-absolute bottom-0 end-0 m-2 border-bottom border-end" style={{width: '20px', height: '20px', borderColor: config.color}}/>
 
-      <div className="d-flex gap-3 mt-5 w-100 justify-content-center" style={{ maxWidth: '500px' }}>
-        <Button variant="secondary" onClick={() => setModo(null)}>Atrás</Button>
-        <Button variant={config.color} size="lg" className="flex-grow-1 fw-bold" onClick={() => sacarCarta(modo)}>
-           SIGUIENTE
-        </Button>
+        {loading ? (
+            <Spinner animation="grow" variant="light" />
+        ) : (
+            <h2 className="fw-bold lh-base" style={{textShadow: '0 2px 4px rgba(0,0,0,0.8)'}}>
+                {frase}
+            </h2>
+        )}
+      </div>
+
+      {/* CONTROLES */}
+      <div className="d-flex gap-3 w-100 justify-content-center" style={{ maxWidth: '500px' }}>
+        <button 
+            className="btn btn-outline-secondary px-4 fw-bold rounded-pill" 
+            onClick={() => setModo(null)}
+        >
+            ATRÁS
+        </button>
+        
+        <button 
+            className="btn-neon-main flex-grow-1 fw-bold fs-5 py-3" 
+            style={{
+                backgroundColor: config.color, 
+                color: '#000', // Texto negro para contraste sobre color brillante
+                borderColor: config.color,
+                boxShadow: `0 0 15px ${config.color}80`
+            }}
+            onClick={() => sacarCarta(modo)}
+            disabled={loading}
+        >
+            {loading ? 'CARGANDO...' : 'SIGUIENTE ➔'}
+        </button>
       </div>
     </Container>
   );

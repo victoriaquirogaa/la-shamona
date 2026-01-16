@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
-import { Container, Button, Card, Spinner, Badge } from 'react-bootstrap';
+import { Container, Spinner } from 'react-bootstrap';
 import { api } from '../lib/api';
-// IMPORTANTE: Ahora que instalaste con --legacy-peer-deps, esto va a andar 👇
+// IMPORTANTE: Chart.js
 import { Chart as ChartJS, ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement } from 'chart.js';
 import { Pie, Bar } from 'react-chartjs-2';
+import '../App.css'; // 👈 Estilos neón
 
 // Registramos los componentes de los gráficos
 ChartJS.register(ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement);
@@ -32,13 +33,11 @@ export const VotacionOnline = ({ datos, salir }: Props) => {
     return () => clearInterval(intervalo);
   }, [datos.codigo]);
 
-  if (loading || !sala) return <Container className="pt-5 text-center"><Spinner animation="border" variant="light"/></Container>;
+  if (loading || !sala) return <Container className="pt-5 min-vh-100 bg-dark text-center d-flex align-items-center justify-content-center"><Spinner animation="border" variant="info"/></Container>;
 
   const { datos_juego } = sala;
   const { titulo, consigna, opciones, votos, resultados, terminado } = datos_juego || {};
   const miNombre = datos.nombre;
-  
-  // Verificamos si ya voté
   const yaVote = votos && votos[miNombre];
 
   const handleVotar = async (opcion: string) => {
@@ -47,19 +46,27 @@ export const VotacionOnline = ({ datos, salir }: Props) => {
     setVotando(false);
   };
 
-  const handleSiguiente = async () => {
-     // Pide otra pregunta
-     await api.iniciarJuegoOnline(datos.codigo, datos.juego);
+  const handleSiguiente = async () => await api.iniciarJuegoOnline(datos.codigo, datos.juego);
+
+  // --- ESTILOS DE GRÁFICOS (NEÓN) ---
+  const chartOptions = {
+      plugins: {
+          legend: { labels: { color: 'white', font: { size: 14 } } } // Leyenda blanca
+      },
+      scales: datos.juego === 'probable' ? {
+          x: { ticks: { color: 'white' }, grid: { color: 'rgba(255,255,255,0.1)' } },
+          y: { ticks: { color: 'white' }, grid: { color: 'rgba(255,255,255,0.1)' } }
+      } : {}
   };
 
-  // --- CONFIGURACIÓN DE GRÁFICOS ---
-  // 1. Torta (Rico vs Pobre)
+  // 1. Torta (Rico vs Pobre) - Colores brillantes
   const dataPie = {
     labels: Object.keys(resultados || {}),
     datasets: [{
       data: Object.values(resultados || {}),
-      backgroundColor: ['#FF6384', '#36A2EB', '#FFCE56'], 
-      borderWidth: 0,
+      backgroundColor: ['#ff0055', '#00d4ff', '#ffd700', '#bd00ff'], // Rosa, Cian, Dorado, Violeta
+      borderWidth: 2,
+      borderColor: '#212529' // Borde oscuro para separar
     }],
   };
 
@@ -69,75 +76,100 @@ export const VotacionOnline = ({ datos, salir }: Props) => {
     datasets: [{
       label: 'Votos',
       data: Object.values(resultados || {}),
-      backgroundColor: '#4BC0C0',
+      backgroundColor: 'rgba(0, 212, 255, 0.6)', // Cian semi-transparente
+      borderColor: '#00d4ff',
+      borderWidth: 2,
       borderRadius: 5,
     }],
   };
 
   return (
-    <Container className="min-vh-100 py-4 d-flex flex-column align-items-center bg-dark text-white text-center">
-      <Badge bg="info" className="mb-3">{titulo}</Badge>
+    <Container className="min-vh-100 py-4 d-flex flex-column align-items-center bg-dark text-white text-center p-3">
       
+      {/* HEADER */}
+      <div className="w-100 d-flex justify-content-between align-items-center mb-5 px-2" style={{maxWidth: '600px'}}>
+           <div className="badge bg-transparent border border-info text-info px-3 py-2 rounded-pill fw-normal">{titulo?.toUpperCase()}</div>
+           <button className="btn btn-sm btn-outline-light border-0 opacity-50" onClick={salir}>SALIR</button>
+      </div>
+
       {/* PREGUNTA */}
-      <h2 className="display-6 fw-bold mb-5 px-2">{consigna || "Cargando pregunta..."}</h2>
+      <h2 className="titulo-neon display-5 mb-5 px-2 text-uppercase" style={{textShadow: '0 0 10px rgba(255,255,255,0.3)', color: 'white'}}>
+          {consigna || "Cargando..."}
+      </h2>
 
       {!terminado ? (
-        // --- FASE DE VOTACIÓN (Antes de ver resultados) ---
-        <div className="w-100" style={{ maxWidth: '400px' }}>
-          <p className="text-muted mb-4">Elegí una opción:</p>
+        // --- FASE DE VOTACIÓN ---
+        <div className="w-100 animate-in slide-up" style={{ maxWidth: '450px' }}>
+          <p className="text-white-50 mb-4 ls-2 text-uppercase small">Tu elección es anónima...</p>
           <div className="d-grid gap-3">
             {opciones?.map((op: string) => (
-              <Button
+              <button
                 key={op}
-                variant={yaVote === op ? "light" : "outline-light"}
-                size="lg"
-                className={`py-3 fw-bold ${yaVote === op ? 'border-4 border-info' : ''}`}
+                // 🚨 CORRECCIÓN: Saqué 'text-white' de la condición 'else'.
+                // Antes: ... : 'btn-outline-light text-white'
+                // Ahora: ... : 'btn-outline-light'
+                // Esto deja que Bootstrap maneje el color negro al pasar el mouse.
+                className={`btn py-3 fw-bold fs-5 position-relative overflow-hidden ${yaVote === op ? 'btn-light text-dark shadow-lg' : 'btn-outline-light'}`}
+                style={{
+                    borderRadius: '50px',
+                    transition: 'all 0.3s',
+                    border: '2px solid white',
+                    opacity: (!!yaVote && yaVote !== op) ? 0.5 : 1
+                }}
                 onClick={() => handleVotar(op)}
                 disabled={!!yaVote || votando}
               >
                 {op} {yaVote === op && "✅"}
-              </Button>
+              </button>
             ))}
           </div>
-          <div className="mt-4 text-white-50">
+          <div className="mt-5 animate-pulse text-info fw-bold">
             {Object.keys(votos || {}).length} votos recibidos...
           </div>
         </div>
       ) : (
-        // --- FASE DE RESULTADOS (Con Gráficos) ---
-        <div className="w-100 animate-in zoom-in" style={{ maxWidth: '500px' }}>
-          <Card className="bg-white text-dark p-3 shadow-lg mb-4">
-            <h4 className="fw-bold mb-3">Resultados 📊</h4>
+        // --- FASE DE RESULTADOS ---
+        <div className="w-100 animate-in zoom-in" style={{ maxWidth: '600px' }}>
+          <div className="card-shamona p-4 shadow-lg mb-5 border-0" style={{background: 'rgba(0,0,0,0.6)'}}>
+            <h4 className="fw-bold mb-4 text-info text-uppercase ls-2">📊 RESULTADOS FINALES</h4>
             
-            <div style={{ maxHeight: '300px', display: 'flex', justifyContent: 'center' }}>
+            <div style={{ minHeight: '300px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
                 {datos.juego === 'rico_pobre' ? (
-                    <div style={{ width: '250px' }}>
-                        <Pie data={dataPie} />
+                    <div style={{ width: '100%', maxWidth: '300px' }}>
+                        <Pie data={dataPie} options={chartOptions as any} />
                     </div>
                 ) : (
-                    <Bar 
-                        data={dataBar} 
-                        options={{
-                            indexAxis: 'y', // Barras horizontales
-                            scales: { x: { ticks: { stepSize: 1 } } },
-                            plugins: { legend: { display: false } } 
-                        }} 
-                    />
+                    <div style={{ width: '100%' }}>
+                        <Bar 
+                            data={dataBar} 
+                            options={{
+                                ...chartOptions,
+                                indexAxis: 'y', // Barras horizontales
+                                scales: { 
+                                    x: { ticks: { color: 'white', stepSize: 1 }, grid: { color: 'rgba(255,255,255,0.1)' } },
+                                    y: { ticks: { color: 'white', font: {size: 14, weight: 'bold'} }, grid: { display: false } }
+                                },
+                                plugins: { legend: { display: false } } 
+                            } as any} 
+                        />
+                    </div>
                 )}
             </div>
-          </Card>
+          </div>
 
           {datos.soyHost ? (
-             <div className="d-grid gap-2">
-                <Button variant="warning" size="lg" className="fw-bold" onClick={handleSiguiente}>
+             <div className="d-grid gap-3 w-100 animate-in slide-up" style={{maxWidth: '400px', margin: '0 auto'}}>
+                <button className="btn-neon-main py-3 fw-bold fs-5" onClick={handleSiguiente}>
                     🔄 OTRA PREGUNTA
-                </Button>
-                <Button variant="outline-light" onClick={salir}>
-                    Salir al Menú
-                </Button>
+                </button>
+                <button className="btn btn-link text-danger text-decoration-none mt-2" onClick={salir}>
+                    Terminar juego
+                </button>
              </div>
           ) : (
-             <p className="animate-pulse text-info">Esperando al Host...</p>
+             <div className="animate-pulse text-white-50">
+                 Esperando que el Host decida...
+             </div>
           )}
         </div>
       )}

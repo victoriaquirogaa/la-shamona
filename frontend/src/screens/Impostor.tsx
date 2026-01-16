@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
-import { Container, Button, Card, Form, Badge, ListGroup, CloseButton, Spinner } from 'react-bootstrap';
+import { Container, Form, CloseButton, Spinner } from 'react-bootstrap';
 import { api } from '../lib/api'; 
 import Swal from 'sweetalert2';
+import '../App.css'; // 👈 Estilos
 
 interface Categoria {
     id: string;
@@ -10,7 +11,7 @@ interface Categoria {
 }
 
 interface Props {
-  volver: () => void;
+    volver: () => void;
 }
 
 export const Impostor = ({ volver }: Props) => {
@@ -23,7 +24,7 @@ export const Impostor = ({ volver }: Props) => {
   
   // CATEGORÍAS
   const [categorias, setCategorias] = useState<Categoria[]>([]);
-  const [catSeleccionada, setCatSeleccionada] = useState<string>(""); // Vacío = Aleatoria
+  const [catSeleccionada, setCatSeleccionada] = useState<string>(""); 
   const [cargandoCats, setCargandoCats] = useState(true);
 
   // ESTADO JUEGO
@@ -33,7 +34,7 @@ export const Impostor = ({ volver }: Props) => {
   const [turno, setTurno] = useState(0); 
   const [viendo, setViendo] = useState(false);
 
-  // --- 1. CARGAR CATEGORÍAS AL INICIO ---
+  // --- 1. CARGAR ---
   useEffect(() => {
     const cargar = async () => {
         const data = await api.getCategoriasImpostor();
@@ -43,7 +44,7 @@ export const Impostor = ({ volver }: Props) => {
     cargar();
   }, []);
 
-  // --- 2. AGREGAR NOMBRES ---
+  // --- 2. AGREGAR ---
   const agregar = () => {
     if(!nuevoNombre.trim()) return;
     if(nombres.includes(nuevoNombre.trim())) return;
@@ -51,32 +52,28 @@ export const Impostor = ({ volver }: Props) => {
     setNuevoNombre("");
   }
 
-  // --- 3. INICIAR PARTIDA ---
+  // --- 3. REPARTIR ---
   const repartir = async () => {
-    if (nombres.length < 3) return Swal.fire('Faltan jugadores', 'Mínimo 3 personas.', 'warning');
+    if (nombres.length < 3) return Swal.fire({ title:'Faltan jugadores', text: 'Mínimo 3 personas.', icon: 'warning', background: '#212529', color: '#fff'});
     
     setLoading(true);
     try {
-        // Le mandamos la categoría seleccionada (o null si es aleatoria)
         const catId = catSeleccionada === "" ? undefined : catSeleccionada;
-        
         const data = await api.crearPartidaImpostorLocal(nombres, catId);
         
         setDistribucion(data.distribucion);
         setCategoriaTitulo(data.categoria);
-        
-        // Reset de estado de ronda
         setTurno(0);
         setViendo(false);
         setFase('ronda');
     } catch (e) {
         console.error(e);
-        Swal.fire('Error', 'Hubo un error al conectar. Probá de nuevo.', 'error');
+        Swal.fire({title: 'Error', text: 'Probá de nuevo.', icon: 'error', background: '#212529', color: '#fff'});
     }
     setLoading(false);
   };
 
-  // --- 4. CONTROL DE RONDA ---
+  // --- 4. RONDA ---
   const siguiente = () => {
     setViendo(false);
     if (turno + 1 < distribucion.length) setTurno(turno + 1);
@@ -88,59 +85,68 @@ export const Impostor = ({ volver }: Props) => {
   // --- VISTA 1: SETUP ---
   if (fase === 'setup') {
     return (
-      <Container className="min-vh-100 py-4 d-flex flex-column bg-dark text-white text-center">
-        <div className="d-flex align-items-center mb-3">
-            <Button variant="outline-light" className="me-3 rounded-circle" onClick={volver}>🡠</Button>
-            <h2 className="m-0 fw-bold">Impostor 🕵️‍♂️</h2>
+      <Container className="min-vh-100 py-4 d-flex flex-column align-items-center text-center p-3">
+        {/* HEADER */}
+        <div className="w-100 d-flex justify-content-between align-items-center mb-4 px-2" style={{maxWidth: '500px'}}>
+            <h2 className="titulo-neon m-0 fs-3" style={{color: '#bd00ff', textShadow: '0 0 10px #bd00ff'}}>IMPOSTOR 🕵️‍♂️</h2>
+            <button className="btn btn-sm btn-outline-light rounded-pill px-3" onClick={volver}>SALIR</button>
         </div>
         
-        <Card className="bg-secondary bg-opacity-10 border-0 p-3 mb-3">
-            {/* SELECTOR DE CATEGORÍA */}
-            <Form.Group className="mb-3 text-start">
-                <Form.Label className="text-info fw-bold small">CATEGORÍA:</Form.Label>
+        <div className="card-shamona p-4 mb-3 w-100 animate-in zoom-in" style={{maxWidth: '500px', border: '1px solid #bd00ff'}}>
+            {/* SELECTOR CATEGORÍA */}
+            <div className="text-start mb-4">
+                <label className="text-white small fw-bold mb-2 text-uppercase">Temática del secreto:</label>
                 {cargandoCats ? (
-                    <div className="text-muted small"><Spinner size="sm" animation="border"/> Cargando temas...</div>
+                    <div className="text-white-50 small"><Spinner size="sm" animation="border" variant="info"/> Buscando archivos...</div>
                 ) : (
                     <Form.Select 
-                        className="bg-dark text-white border-secondary fw-bold"
+                        className="bg-dark text-white border-secondary rounded-pill py-2 fw-bold text-center"
+                        style={{background: 'rgba(0,0,0,0.5)'}}
                         value={catSeleccionada}
                         onChange={(e) => setCatSeleccionada(e.target.value)}
                     >
-                        <option value="">🎲 Aleatoria (Mix)</option>
+                        <option value="">🎲 ALEATORIA (MIX)</option>
                         {categorias.map(c => (
-                            <option key={c.id} value={c.id}>
-                                {c.es_premium ? '⭐ ' : ''}{c.titulo}
-                            </option>
+                            <option key={c.id} value={c.id}>{c.es_premium ? '⭐ ' : ''}{c.titulo.toUpperCase()}</option>
                         ))}
                     </Form.Select>
                 )}
-            </Form.Group>
+            </div>
 
             {/* INPUT NOMBRES */}
-            <div className="d-flex gap-2 mb-3">
-                <Form.Control value={nuevoNombre} onChange={e => setNuevoNombre(e.target.value)} 
-                    placeholder="Nombre jugador..." className="bg-dark text-white border-secondary" 
-                    onKeyDown={e => e.key === 'Enter' && agregar()} />
-                <Button variant="info" onClick={agregar}>➕</Button>
+            <div className="d-flex gap-2 mb-4">
+                <Form.Control 
+                    value={nuevoNombre} 
+                    onChange={e => setNuevoNombre(e.target.value)} 
+                    placeholder="Nombre jugador..." 
+                    className="bg-dark text-white border-secondary rounded-pill px-3"
+                    style={{border: '1px solid #bd00ff'}}
+                    onKeyDown={e => e.key === 'Enter' && agregar()} 
+                />
+                <button className="btn-neon-main py-1 px-3" style={{width: 'auto', borderColor: '#bd00ff', color: '#bd00ff'}} onClick={agregar}>+</button>
             </div>
 
             {/* LISTA JUGADORES */}
-            <div style={{maxHeight: '250px', overflowY: 'auto'}}>
-                <ListGroup variant="flush">
-                    {nombres.map((n, i) => (
-                        <ListGroup.Item key={i} className="bg-transparent text-white d-flex justify-content-between py-1 px-0 border-secondary">
-                            <span>{i+1}. {n}</span>
-                            <CloseButton variant="white" onClick={() => setNombres(nombres.filter((_, idx) => idx !== i))} />
-                        </ListGroup.Item>
-                    ))}
-                    {nombres.length === 0 && <span className="text-muted small fst-italic">Agreguen nombres para jugar...</span>}
-                </ListGroup>
+            <div className="d-flex flex-wrap gap-2 justify-content-center mb-2" style={{minHeight: '100px'}}>
+                 {nombres.map((n, i) => (
+                    <div key={i} className="px-3 py-1 rounded-pill bg-dark text-white small fw-bold d-flex align-items-center gap-2 animate-in fade-in" 
+                         style={{border: '1px solid rgba(255,255,255,0.3)'}}>
+                      {i+1}. {n} 
+                      <CloseButton variant="white" onClick={() => setNombres(nombres.filter((_, idx) => idx !== i))} style={{width: '0.5em', height: '0.5em'}}/>
+                    </div>
+                  ))}
+                  {nombres.length === 0 && <small className="text-white-50 fst-italic mt-4">Agreguen nombres para comenzar la misión...</small>}
             </div>
-        </Card>
+        </div>
 
-        <Button variant="success" size="lg" className="w-100 fw-bold mt-auto py-3 shadow" onClick={repartir} disabled={loading || nombres.length < 3}>
-            {loading ? "Mezclando..." : "REPARTIR ROLES 🃏"}
-        </Button>
+        <button 
+            className="btn-neon-secondary w-100 py-3 fw-bold fs-5 shadow-lg" 
+            style={{maxWidth: '500px', backgroundColor: '#bd00ff', color: 'white', borderColor: '#bd00ff'}} 
+            onClick={repartir} 
+            disabled={loading || nombres.length < 3}
+        >
+            {loading ? <Spinner size="sm"/> : "🕵️ REPARTIR ROLES"}
+        </button>
       </Container>
     );
   }
@@ -149,35 +155,60 @@ export const Impostor = ({ volver }: Props) => {
   if (fase === 'ronda') {
     const jugador = distribucion[turno];
     return (
-      <Container className="min-vh-100 py-4 d-flex flex-column align-items-center justify-content-center bg-dark text-white text-center">
-        <Badge bg="secondary" className="mb-4">JUGADOR {turno + 1}/{distribucion.length}</Badge>
+      <Container className="min-vh-100 py-4 d-flex flex-column align-items-center justify-content-center text-center p-3">
+        
+        {/* INDICADOR DE TURNO */}
+        <div className="badge rounded-pill bg-dark border border-secondary mb-5 animate-in fade-in px-4 py-2">
+            JUGADOR {turno + 1} / {distribucion.length}
+        </div>
 
         {!viendo ? (
-            <div className="animate-in fade-in">
-                <h3 className="text-muted mb-4">Dale el celular a:</h3>
-                <h1 className="display-1 fw-black text-info mb-5">{jugador.nombre}</h1>
-                <Button variant="outline-info" size="lg" className="px-5 rounded-pill shadow" onClick={() => setViendo(true)}>
+            <div className="animate-in zoom-in w-100" style={{maxWidth: '500px'}}>
+                <h3 className="text-white-50 mb-4 fw-light">Pase el dispositivo a:</h3>
+                <h1 className="titulo-neon mb-5" style={{fontSize: '3.5rem', color: '#00d4ff', textShadow: '0 0 20px #00d4ff'}}>{jugador.nombre}</h1>
+                
+                <button 
+                    className="btn-neon-main py-3 px-5 fw-bold fs-4 rounded-pill shadow-lg"
+                    style={{borderColor: '#00d4ff', color: '#00d4ff'}} 
+                    onClick={() => setViendo(true)}
+                >
                     SOY YO 👁️
-                </Button>
+                </button>
             </div>
         ) : (
-            <div className="animate-in zoom-in w-100" style={{maxWidth: '400px'}}>
-                <Card className={`border-0 p-5 mb-4 shadow-lg ${jugador.rol === 'IMPOSTOR' ? 'bg-danger' : 'bg-success'} text-white`}>
+            <div className="card-shamona w-100 animate-in flip-in-y p-5 shadow-lg position-relative" 
+                 style={{
+                     maxWidth: '400px', 
+                     minHeight: '400px',
+                     border: `2px solid ${jugador.rol === 'IMPOSTOR' ? '#ff0055' : '#00ff9d'}`,
+                     background: jugador.rol === 'IMPOSTOR' ? 'rgba(255, 0, 85, 0.1)' : 'rgba(0, 255, 157, 0.1)'
+                 }}>
+                
+                <div className="d-flex flex-column justify-content-center align-items-center h-100">
                     {jugador.rol === 'IMPOSTOR' ? (
                         <>
-                            <h1 className="display-1 mb-0">🤫</h1>
-                            <h2 className="fw-black">IMPOSTOR</h2>
-                            <p>Tu misión es mentir.<br/>No sabés la palabra.</p>
+                            <div style={{fontSize: '5rem'}} className="mb-3 animate-pulse">🤫</div>
+                            <h2 className="fw-black text-danger display-4 mb-3" style={{textShadow: '0 0 20px red'}}>IMPOSTOR</h2>
+                            <p className="text-white fs-5 lh-sm">Tu misión es mentir.<br/>Nadie sabe que sos vos.</p>
                         </>
                     ) : (
                         <>
-                            <small className="ls-2">LA PALABRA ES</small>
-                            <h1 className="display-3 fw-black mt-2 text-wrap">{jugador.palabra.toUpperCase()}</h1>
+                            <small className="text-white-50 ls-2 text-uppercase mb-2">LA PALABRA SECRETA ES</small>
+                            <h1 className="fw-black text-white display-3 mt-2 mb-4 text-wrap text-uppercase" style={{textShadow: '0 0 20px white'}}>
+                                {jugador.palabra}
+                            </h1>
+                            <div className="badge bg-dark bg-opacity-50 border border-secondary px-3 py-2 mt-auto">
+                                TEMÁTICA: {categoriaTitulo.toUpperCase()}
+                            </div>
                         </>
                     )}
-                    <div className="mt-3 p-1 bg-black bg-opacity-25 rounded"><small>{categoriaTitulo}</small></div>
-                </Card>
-                <Button variant="light" size="lg" className="w-100 fw-bold shadow" onClick={siguiente}>OK, SIGUIENTE 🙈</Button>
+                </div>
+
+                <div className="position-absolute bottom-0 start-0 w-100 p-3">
+                     <button className="btn-neon-secondary w-100 py-3 fw-bold bg-dark text-white border-0" onClick={siguiente}>
+                        OK, ESCONDÉ ESTO 🙈
+                     </button>
+                </div>
             </div>
         )}
       </Container>
@@ -186,28 +217,31 @@ export const Impostor = ({ volver }: Props) => {
 
   // --- VISTA 3: FINAL ---
   return (
-    <Container className="min-vh-100 py-4 d-flex flex-column align-items-center justify-content-center bg-dark text-white text-center">
-        <h1 className="display-1 mb-2">🔥</h1>
-        <h2 className="display-4 fw-bold text-warning mb-4">¡A DEBATIR!</h2>
+    <Container className="min-vh-100 py-4 d-flex flex-column align-items-center justify-content-center text-center p-3">
+        <div style={{fontSize: '4rem'}} className="mb-2 animate-bounce">🔥</div>
+        <h1 className="titulo-neon display-3 mb-5" style={{color: '#ffd700', textShadow: '0 0 20px #ffd700'}}>¡A DEBATIR!</h1>
         
-        <div className="bg-secondary bg-opacity-10 p-3 rounded mb-5 border border-secondary w-100" style={{maxWidth: '400px'}}>
-            <p className="fs-5 mb-1 text-muted">La categoría era:</p>
-            <h3 className="text-info fw-bold">{categoriaTitulo}</h3>
+        <div className="card-shamona p-4 mb-5 w-100 animate-in slide-up" style={{maxWidth: '400px', border: '1px dashed rgba(255,255,255,0.3)'}}>
+            <p className="fs-6 mb-1 text-white-50 text-uppercase">La categoría secreta era:</p>
+            <h3 className="text-white fw-bold m-0">{categoriaTitulo}</h3>
         </div>
 
-        <div className="d-grid gap-3 col-10 col-md-6 mx-auto">
-            {/* BOTÓN ARREGLADO: Ahora llama a repartir() directamente, usando los nombres y categoría actuales */}
-            <Button variant="outline-light" size="lg" className="py-3 fw-bold" onClick={repartir} disabled={loading}>
-                {loading ? "Cargando..." : "🔄 MISMA CONFIGURACIÓN"}
-            </Button>
+        <div className="d-grid gap-3 w-100 animate-in slide-up" style={{maxWidth: '400px', animationDelay: '0.2s'}}>
+            <button 
+                className="btn-neon-main py-3 fw-bold fs-5" 
+                onClick={repartir} 
+                disabled={loading}
+            >
+                {loading ? <Spinner size="sm"/> : "🔄 JUGAR DE NUEVO (MISMO GRUPO)"}
+            </button>
             
-            <Button variant="link" className="text-muted" onClick={() => setFase('setup')}>
-                Cambiar nombres o categoría
-            </Button>
+            <button className="btn btn-outline-light py-2 border-0 opacity-75" onClick={() => setFase('setup')}>
+                ⚙️ Cambiar nombres o categoría
+            </button>
             
-            <Button variant="link" className="text-danger text-decoration-none" onClick={volver}>
-                Salir al Menú
-            </Button>
+            <button className="btn btn-link text-danger text-decoration-none mt-3" onClick={volver}>
+                ❌ Salir al Menú
+            </button>
         </div>
     </Container>
   );

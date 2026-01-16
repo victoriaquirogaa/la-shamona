@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
-import { Container, Button, Card, Badge, Spinner, Alert } from 'react-bootstrap';
+import { Container, Button, Spinner, Alert } from 'react-bootstrap';
 import { api } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
-import Swal from 'sweetalert2';
+import '../App.css'; // 👈 Estilos importantes
 
 interface Props {
   datos: { codigo: string; soyHost: boolean; nombre: string }; 
@@ -19,213 +19,227 @@ export const ImpostorOnline = ({ datos, salir }: Props) => {
   const [miVoto, setMiVoto] = useState<string | null>(null);
   const [reiniciando, setReiniciando] = useState(false);
 
-  // --- 1. SINCRONIZACIÓN (POLLING) ---
+  // --- SYNC ---
   useEffect(() => {
     const fetchSala = async () => {
       try {
         const data = await api.getSalaOnline(datos.codigo);
         setSala(data);
         setLoading(false);
-      } catch (e) {
-        console.error("Error sync", e);
-      }
+      } catch (e) { console.error("Error sync", e); }
     };
-
     fetchSala(); 
     const intervalo = setInterval(fetchSala, 2000); 
     return () => clearInterval(intervalo);
   }, [datos.codigo]);
 
-  if (loading || !sala) return <Container className="d-flex justify-content-center pt-5"><Spinner animation="border" variant="light"/></Container>;
+  if (loading || !sala) return <Container className="d-flex justify-content-center pt-5 min-vh-100 bg-dark"><Spinner animation="border" variant="info"/></Container>;
 
-  // DESEMPAQUETAR DATOS
-  const { fase, datos_juego, jugadores } = sala;
-  const { palabra_secreta, impostor, categoria, votos, eliminados, ultimo_eliminado, ganador, mensaje_final } = datos_juego || {};
+  // DESEMPAQUETAR
+  const { fase, datos_juego } = sala;
+  const { impostor, categoria, eliminados, ultimo_eliminado, ganador, mensaje_final, palabra_secreta } = datos_juego || {};
   
   const miNombre = datos.nombre;
   const soyImpostor = miNombre === impostor;
   const estoyVivo = !eliminados?.includes(miNombre);
   const soyHost = datos.soyHost;
 
-  // --- FUNCIONES ---
+  // --- ACCIONES ---
   const handleVotar = async (acusado: string) => {
     if (miVoto) return; 
     setMiVoto(acusado);
     await api.votarImpostor(datos.codigo, miNombre, acusado);
   };
 
-  const iniciarVotacion = async () => {
-      await api.cambiarFaseImpostor(datos.codigo, 'VOTACION');
-  };
-
+  const iniciarVotacion = async () => await api.cambiarFaseImpostor(datos.codigo, 'VOTACION');
+  
   const siguienteRonda = async () => {
       await api.cambiarFaseImpostor(datos.codigo, 'RONDA');
       setMiVoto(null); 
   };
 
-  // --- NUEVA FUNCIÓN: REINICIAR PARTIDA ---
   const handleReiniciar = async () => {
       setReiniciando(true);
       try {
-        // Llamamos a iniciarJuegoOnline de nuevo. 
-        // Nota: Si querés conservar la categoría exacta, necesitarías que el backend te devuelva el ID de categoría.
-        // Por ahora reinicia con categoría aleatoria o la que decida el backend por defecto.
         await api.iniciarJuegoOnline(datos.codigo, 'impostor');
         setMiVoto(null);
-      } catch (e) {
-          console.error(e);
-      }
+      } catch (e) { console.error(e); }
       setReiniciando(false);
   };
 
-  // ================= VISTAS SEGÚN FASE =================
+  // ================= VISTAS =================
 
-  // --- FASE 1: RONDA (Ver rol y debatir) ---
+  // --- FASE 1: RONDA (Ver rol) ---
   if (fase === 'RONDA' || fase === 'INICIO' || fase === 'JUGANDO') {
     return (
       <Container className="min-vh-100 py-4 d-flex flex-column align-items-center bg-dark text-white text-center">
-        <Badge bg="warning" text="dark" className="mb-3">EN JUEGO 🟢</Badge>
         
+        {/* HEADER */}
+        <div className="w-100 d-flex justify-content-between align-items-center mb-4 px-2" style={{maxWidth: '600px'}}>
+             <div className="badge bg-dark border border-secondary text-white px-3 py-2 rounded-pill">RONDA DE DEBATE</div>
+             {estoyVivo ? <span className="text-success small fw-bold">VIVO 🟢</span> : <span className="text-secondary small fw-bold">ESPECTADOR 👻</span>}
+        </div>
+
         {estoyVivo ? (
-            <>
-                <h3 className="text-info mb-4">{categoria}</h3>
+            <div className="flex-grow-1 d-flex flex-column align-items-center justify-content-center w-100">
+                <h3 className="text-white-50 mb-5 fw-light text-uppercase ls-2">TEMÁTICA: <span className="text-info fw-bold">{categoria}</span></h3>
                 
-                {/* BOTÓN VER ROL */}
+                {/* BOTÓN MÁGICO DE ROL */}
                 {!viendoRol ? (
-                    <div className="mb-5">
-                        <Button 
-                            variant="outline-light" size="lg" className="px-5 py-5 rounded-circle fw-bold border-2 shadow-lg"
-                            style={{width: '200px', height: '200px'}}
-                            onMouseDown={() => setViendoRol(true)}
-                            onTouchStart={() => setViendoRol(true)}
-                            onMouseUp={() => setViendoRol(false)}
-                            onTouchEnd={() => setViendoRol(false)}
-                        >
-                            MANTENÉ<br/>PARA VER<br/>TU ROL 👁️
-                        </Button>
-                    </div>
+                    <button 
+                        className="rounded-circle fw-bold shadow-lg position-relative animate-pulse"
+                        style={{
+                            width: '220px', height: '220px',
+                            background: 'radial-gradient(circle, #2a2a2a 0%, #000 100%)',
+                            border: '4px solid var(--neon-cyan)',
+                            color: 'var(--neon-cyan)',
+                            fontSize: '1.2rem',
+                            textShadow: '0 0 10px var(--neon-cyan)'
+                        }}
+                        onMouseDown={() => setViendoRol(true)}
+                        onTouchStart={() => setViendoRol(true)}
+                        onMouseUp={() => setViendoRol(false)}
+                        onTouchEnd={() => setViendoRol(false)}
+                    >
+                        <div className="position-absolute top-50 start-50 translate-middle text-center lh-sm">
+                            <div style={{fontSize: '3rem', marginBottom: '10px'}}>👁️</div>
+                            MANTENÉ<br/>PARA VER<br/>TU ROL
+                        </div>
+                    </button>
                 ) : (
-                    <div className="mb-5 animate-in zoom-in">
-                        <Card className={`border-0 p-4 shadow-lg ${soyImpostor ? 'bg-danger' : 'bg-success'} text-white`} style={{width: '300px', margin: '0 auto'}}>
-                            {soyImpostor ? (
-                                <>
-                                    <h1 className="display-1 mb-0">🤫</h1>
-                                    <h3 className="fw-black">IMPOSTOR</h3>
-                                </>
-                            ) : (
-                                <>
-                                    <small className="ls-2 text-uppercase">PALABRA</small>
-                                    <h2 className="fw-black mt-1">{palabra_secreta?.toUpperCase()}</h2>
-                                </>
-                            )}
-                        </Card>
+                    <div className="card-shamona p-4 shadow-lg animate-in zoom-in d-flex flex-column justify-content-center align-items-center text-center"
+                         style={{
+                             width: '280px', height: '280px',
+                             border: `3px solid ${soyImpostor ? 'var(--neon-pink)' : '#00ff9d'}`,
+                             background: soyImpostor ? 'rgba(255, 0, 85, 0.1)' : 'rgba(0, 255, 157, 0.1)'
+                         }}>
+                        {soyImpostor ? (
+                            <>
+                                <div style={{fontSize: '4rem'}} className="mb-2">🤫</div>
+                                <h2 className="fw-black text-danger display-4 mb-2" style={{textShadow: '0 0 20px red'}}>IMPOSTOR</h2>
+                                <p className="text-white small lh-sm">Engañalos a todos.</p>
+                            </>
+                        ) : (
+                            <>
+                                <small className="text-white-50 ls-2 text-uppercase mb-2">LA PALABRA ES</small>
+                                <h2 className="fw-black text-white display-4 mb-3 text-wrap text-uppercase" style={{textShadow: '0 0 20px white'}}>
+                                    {palabra_secreta?.toUpperCase()}
+                                </h2>
+                            </>
+                        )}
                     </div>
                 )}
 
-                <div className="mt-auto w-100" style={{maxWidth: '400px'}}>
-                    <p className="text-muted">Debatan quién miente...</p>
-                    {soyHost && (
-                        <Button variant="danger" size="lg" className="w-100 fw-bold py-3 shadow" onClick={iniciarVotacion}>
+                <div className="mt-auto w-100 mb-4 animate-in slide-up" style={{maxWidth: '400px'}}>
+                    {soyHost ? (
+                        <button className="btn-neon-main py-3 w-100 fw-bold fs-5" 
+                                style={{borderColor: 'var(--neon-pink)', color: 'var(--neon-pink)'}}
+                                onClick={iniciarVotacion}>
                             📢 LLAMAR A VOTACIÓN
-                        </Button>
+                        </button>
+                    ) : (
+                        <p className="text-white-50 small animate-pulse">Esperando que el Host llame a votación...</p>
                     )}
                 </div>
-            </>
+            </div>
         ) : (
-            <Alert variant="danger" className="mt-5">👻 ESTÁS MUERTO (Shhh...)</Alert>
+            <div className="flex-grow-1 d-flex flex-column align-items-center justify-content-center">
+                <div style={{fontSize: '4rem'}} className="mb-3">👻</div>
+                <h2 className="text-secondary fw-bold">ESTÁS MUERTO</h2>
+                <p className="text-muted">Shhh... los muertos no hablan.</p>
+            </div>
         )}
       </Container>
     );
   }
 
-  // --- FASE 2: VOTACIÓN (Elegir culpable) ---
+  // --- FASE 2: VOTACIÓN ---
   if (fase === 'VOTACION') {
     return (
       <Container className="min-vh-100 py-4 d-flex flex-column align-items-center bg-dark text-white text-center">
-        <h2 className="text-danger fw-bold mb-4 animate-pulse">¿QUIÉN ES EL IMPOSTOR?</h2>
+        <h2 className="titulo-neon mb-4 text-danger animate-pulse" style={{textShadow: '0 0 10px red'}}>¿QUIÉN ES EL CULPABLE?</h2>
         
-        {!estoyVivo && <Alert variant="secondary">Sos un fantasma 👻. No podés votar.</Alert>}
+        {!estoyVivo && <div className="badge bg-secondary mb-4">MODO ESPECTADOR 👻</div>}
 
-        <div className="d-grid gap-3 w-100" style={{maxWidth: '400px'}}>
-            {jugadores.map((jugador: string) => {
+        <div className="d-grid gap-3 w-100 px-3" style={{maxWidth: '450px'}}>
+            {sala.jugadores.map((jugador: string) => {
                 const yaMurio = eliminados?.includes(jugador);
-                
                 if (yaMurio) return null; 
 
+                const esMiVoto = miVoto === jugador;
+
                 return (
-                    <Button 
+                    <button 
                         key={jugador}
-                        variant={miVoto === jugador ? "danger" : "outline-light"}
-                        size="lg"
-                        className="py-3 text-start px-4 fw-bold d-flex justify-content-between align-items-center"
+                        className={`btn d-flex justify-content-between align-items-center py-3 px-4 fw-bold border-2 ${esMiVoto ? 'bg-danger text-white border-danger' : 'btn-outline-light text-white'}`}
+                        style={{
+                            borderRadius: '50px', 
+                            transition: 'all 0.2s',
+                            opacity: !estoyVivo ? 0.5 : 1
+                        }}
                         disabled={!estoyVivo || !!miVoto}
                         onClick={() => handleVotar(jugador)}
                     >
-                        {jugador}
-                        {miVoto === jugador && <span>👈 Votado</span>}
-                    </Button>
+                        <span>{jugador}</span>
+                        {esMiVoto && <span>👈 VOTADO</span>}
+                    </button>
                 );
             })}
         </div>
         
-        {miVoto && <p className="mt-4 text-info animate-in fade-in">Esperando a los demás...</p>}
+        {miVoto && <p className="mt-5 text-info animate-pulse small">Esperando al resto...</p>}
       </Container>
     );
   }
 
-  // --- FASE 3: RESULTADO (Eliminación y Final) ---
+  // --- FASE 3: RESULTADO ---
   if (fase === 'RESULTADO_VOTACION' || fase === 'FIN_PARTIDA') {
       const termino = fase === 'FIN_PARTIDA';
-      
       return (
-        <Container className="min-vh-100 py-4 d-flex flex-column align-items-center justify-content-center bg-dark text-white text-center">
+        <Container className="min-vh-100 py-4 d-flex flex-column align-items-center justify-content-center bg-dark text-white text-center p-3">
             
-            {/* ESCENA DEL CRIMEN */}
-            <div className="mb-5 animate-in zoom-in">
-                <h4 className="text-muted text-uppercase ls-2">El eliminado fue...</h4>
-                <h1 className="display-3 fw-black text-danger my-3">{ultimo_eliminado}</h1>
+            <div className="mb-5 animate-in zoom-in w-100" style={{maxWidth: '500px'}}>
+                <h5 className="text-white-50 text-uppercase ls-2 mb-3">El eliminado fue...</h5>
+                <h1 className="display-2 fw-black text-danger mb-4" style={{textShadow: '0 0 30px red'}}>{ultimo_eliminado?.toUpperCase()}</h1>
                 
                 {termino ? (
-                    // TERMINÓ LA PARTIDA
-                    <Card className={`border-0 p-4 mt-4 shadow-lg ${ganador === 'CIUDADANOS' ? 'bg-success' : 'bg-danger'} text-white`}>
-                        <h2 className="fw-bold">VICTORIA DE {ganador}</h2>
-                        <p className="fs-5">{mensaje_final}</p>
-                    </Card>
+                    <div className={`card-shamona p-4 mt-4 shadow-lg ${ganador === 'CIUDADANOS' ? 'border-success' : 'border-danger'}`}
+                         style={{background: ganador === 'CIUDADANOS' ? 'rgba(0,255,0,0.1)' : 'rgba(255,0,0,0.1)'}}>
+                        <h2 className={`fw-bold mb-3 ${ganador === 'CIUDADANOS' ? 'text-success' : 'text-danger'}`}>
+                            VICTORIA {ganador}
+                        </h2>
+                        <p className="fs-5 text-white">{mensaje_final}</p>
+                    </div>
                 ) : (
-                    // SIGUE LA PARTIDA
-                    <div className="mt-4">
-                        <h3 className="text-white">NO ERA EL IMPOSTOR... 😱</h3>
-                        <p className="text-muted">El impostor sigue entre nosotros.</p>
+                    <div className="mt-5 animate-in slide-up">
+                        <h3 className="text-white fw-bold mb-2">NO ERA EL IMPOSTOR... 😱</h3>
+                        <p className="text-white-50">El peligro sigue entre nosotros.</p>
                     </div>
                 )}
             </div>
 
-            {/* BOTONES DE CONTINUAR */}
             {soyHost && (
-                <div className="w-100 d-grid gap-3" style={{maxWidth: '400px'}}>
+                <div className="w-100 d-grid gap-3 animate-in slide-up" style={{maxWidth: '400px', animationDelay: '0.2s'}}>
                     {termino ? (
                         <>
-                            {/* BOTÓN JUGAR OTRA VEZ */}
-                            <Button variant="success" size="lg" className="fw-bold py-3 shadow" onClick={handleReiniciar} disabled={reiniciando}>
-                                {reiniciando ? "Mezclando..." : "🔄 JUGAR OTRA VEZ"}
-                            </Button>
-                            
-                            {/* BOTÓN SALIR */}
-                            <Button variant="outline-light" className="fw-bold" onClick={salir}>
+                            <button className="btn-neon-main bg-success border-success text-white py-3 fw-bold" onClick={handleReiniciar} disabled={reiniciando}>
+                                {reiniciando ? <Spinner size="sm"/> : "🔄 JUGAR OTRA VEZ"}
+                            </button>
+                            <button className="btn btn-outline-light py-2 border-0" onClick={salir}>
                                 Salir al Menú
-                            </Button>
+                            </button>
                         </>
                     ) : (
-                        <Button variant="warning" size="lg" className="fw-bold py-3 shadow" onClick={siguienteRonda}>
-                            CONTINUAR JUGANDO ➔
-                        </Button>
+                        <button className="btn-neon-secondary py-3 fw-bold" style={{color: '#ffd700', borderColor: '#ffd700'}} onClick={siguienteRonda}>
+                            CONTINUAR LA CACERÍA ➔
+                        </button>
                     )}
                 </div>
             )}
             
             {!soyHost && (
-                <div className="animate-pulse">
-                    {termino ? <p className="text-info">Esperando que el Host reinicie...</p> : <p className="text-muted">Esperando al Host...</p>}
+                <div className="animate-pulse mt-4">
+                    <p className="text-white-50 small">{termino ? "Esperando al Host..." : "El juego continúa..."}</p>
                 </div>
             )}
             
@@ -233,5 +247,5 @@ export const ImpostorOnline = ({ datos, salir }: Props) => {
       );
   }
 
-  return <Container><h1 className="text-white">Cargando...</h1></Container>;
+  return <Container><Spinner animation="border" variant="light" className="mt-5"/></Container>;
 };
