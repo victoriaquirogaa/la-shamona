@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Container, Form, CloseButton, Spinner } from 'react-bootstrap';
 import { api } from '../lib/api'; 
-import { AdService } from '../lib/AdMobUtils'; // 👈 USAMOS EL NUEVO SERVICIO
+import { AdService } from '../lib/AdMobUtils'; 
 import Swal from 'sweetalert2';
 import '../App.css';
 
@@ -51,12 +51,12 @@ export const Impostor = ({ volver }: Props) => {
         cargar();
     }, []);
 
-    // --- 2. LÓGICA DEL MIX (Video Rewarded) ---
+    // --- 2. LÓGICA DEL MIX (Video Rewarded - ESTE SE QUEDA ✅) ---
     const manejarClickMix = async () => {
         if (mixDesbloqueado) {
             setCatSeleccionada(""); // "" Significa MIX en tu lógica
         } else {
-            // PEDIR VIDEO
+            // PEDIR VIDEO RECOMPENSADO (Voluntario)
             setCargandoAnuncio(true);
             await AdService.mirarVideoRecompensa(
                 () => { // EXITO
@@ -73,7 +73,7 @@ export const Impostor = ({ volver }: Props) => {
                     });
                 },
                 () => { // ERROR (Fallback)
-                    setMixDesbloqueado(true); // Se lo regalamos
+                    setMixDesbloqueado(true); // Se lo regalamos si falla
                     setCatSeleccionada("");
                     setCargandoAnuncio(false);
                     Swal.fire({ title: 'Regalo', text: 'El video falló, pero te lo regalo igual.', icon: 'info', background: '#212529', color: '#fff'});
@@ -122,12 +122,7 @@ export const Impostor = ({ volver }: Props) => {
         else setFase('final');
     }
 
-    // --- 6. SALIR (Interstitial) ---
-    const salirConAnuncio = async () => {
-        await AdService.mostrarIntersticial();
-        volver();
-    }
-
+    // 🗑️ BORRÉ LA FUNCIÓN salirConAnuncio() PARA QUE SALGA DIRECTO
 
     // ================= VISTAS =================
 
@@ -143,7 +138,7 @@ export const Impostor = ({ volver }: Props) => {
             
             <div className="card-shamona p-4 mb-3 w-100 animate-in zoom-in" style={{maxWidth: '500px', border: '1px solid #bd00ff'}}>
                 
-                {/* 🔽 CAMBIÉ EL SELECT POR BOTONES 🔽 */}
+                {/* 🔽 BOTONES DE CATEGORÍA 🔽 */}
                 <div className="mb-4">
                     <label className="text-white small fw-bold mb-2 text-uppercase d-block text-start">Elige Temática:</label>
                     
@@ -177,8 +172,6 @@ export const Impostor = ({ volver }: Props) => {
                         </div>
                     )}
                 </div>
-                {/* 🔼 FIN SECCION BOTONES 🔼 */}
-
 
                 {/* INPUT NOMBRES */}
                 <div className="d-flex gap-2 mb-4">
@@ -195,7 +188,7 @@ export const Impostor = ({ volver }: Props) => {
 
                 {/* LISTA JUGADORES */}
                 <div className="d-flex flex-wrap gap-2 justify-content-center mb-2" style={{minHeight: '100px'}}>
-                     {nombres.map((n, i) => (
+                      {nombres.map((n, i) => (
                         <div key={i} className="px-3 py-1 rounded-pill bg-dark text-white small fw-bold d-flex align-items-center gap-2 animate-in fade-in" 
                              style={{border: '1px solid rgba(255,255,255,0.3)'}}>
                           {i+1}. {n} 
@@ -305,8 +298,8 @@ export const Impostor = ({ volver }: Props) => {
                     ⚙️ Cambiar nombres o categoría
                 </button>
                 
-                {/* ❌ BOTÓN SALIR CON ANUNCIO ❌ */}
-                <button className="btn btn-link text-danger text-decoration-none mt-3" onClick={salirConAnuncio}>
+                {/* ❌ BOTÓN SALIR SIN ANUNCIO ❌ */}
+                <button className="btn btn-link text-danger text-decoration-none mt-3" onClick={volver}>
                     ❌ Salir al Menú
                 </button>
             </div>

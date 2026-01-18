@@ -3,7 +3,7 @@ import { Container, Spinner } from 'react-bootstrap';
 import { api } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
 import '../App.css'; 
-import { AdService } from '../lib/AdMobUtils'; // 👈 USAMOS EL NUEVO SERVICIO
+// 🗑️ Borramos AdService de acá para que no moleste
 
 interface Props {
   datos: { codigo: string; soyHost: boolean; nombre: string }; 
@@ -27,12 +27,23 @@ export const ImpostorOnline = ({ datos, salir }: Props) => {
         const data = await api.getSalaOnline(datos.codigo);
         setSala(data);
         setLoading(false);
+
+        // 👇👇 SOLUCIÓN AL EMPATE 👇👇
+        const votosServer = data.datos_juego?.votos || {};
+        const miNombre = datos.nombre;
+        
+        // Si yo creo que voté, pero el server borró los votos (empate), me habilito de nuevo
+        if (!votosServer[miNombre]) {
+             setMiVoto(null); 
+        }
+
       } catch (e) { console.error("Error sync", e); }
     };
+    
     fetchSala(); 
     const intervalo = setInterval(fetchSala, 2000); 
     return () => clearInterval(intervalo);
-  }, [datos.codigo]);
+  }, [datos.codigo, datos.nombre]); 
 
   if (loading || !sala) return <Container className="d-flex justify-content-center pt-5 min-vh-100 bg-dark"><Spinner animation="border" variant="info"/></Container>;
 
@@ -48,7 +59,7 @@ export const ImpostorOnline = ({ datos, salir }: Props) => {
   // --- ACCIONES ---
   const handleVotar = async (acusado: string) => {
     if (miVoto) return; 
-    setMiVoto(acusado);
+    setMiVoto(acusado); 
     await api.votarImpostor(datos.codigo, miNombre, acusado);
   };
 
@@ -62,18 +73,15 @@ export const ImpostorOnline = ({ datos, salir }: Props) => {
   const handleReiniciar = async () => {
       setReiniciando(true);
       try {
-        // 🎬 Opcional: El Host ve un anuncio rápido antes de reiniciar la partida
-        await AdService.mostrarIntersticial(); 
-        
+        // 🚀 SIN ANUNCIO: Reinicia directo para mantener el ritmo
         await api.iniciarJuegoOnline(datos.codigo, 'impostor');
         setMiVoto(null);
       } catch (e) { console.error(e); }
       setReiniciando(false);
   };
 
-  // Función segura para salir con anuncio
   const handleSalir = async () => {
-      await AdService.mostrarIntersticial();
+      // 🚀 SIN ANUNCIO: Sale directo al Lobby
       salir();
   };
 
@@ -205,12 +213,18 @@ export const ImpostorOnline = ({ datos, salir }: Props) => {
   // --- FASE 3: RESULTADO ---
   if (fase === 'RESULTADO_VOTACION' || fase === 'FIN_PARTIDA') {
       const termino = fase === 'FIN_PARTIDA';
+      const colorNombre = (ganador === 'CIUDADANOS') ? 'text-success' : 'text-danger';
+      const sombraNombre = (ganador === 'CIUDADANOS') ? '0 0 30px #00ff9d' : '0 0 30px red';
+
       return (
         <Container className="min-vh-100 py-4 d-flex flex-column align-items-center justify-content-center bg-dark text-white text-center p-3">
             
             <div className="mb-5 animate-in zoom-in w-100" style={{maxWidth: '500px'}}>
                 <h5 className="text-white-50 text-uppercase ls-2 mb-3">El eliminado fue...</h5>
-                <h1 className="display-2 fw-black text-danger mb-4" style={{textShadow: '0 0 30px red'}}>{ultimo_eliminado?.toUpperCase()}</h1>
+                
+                <h1 className={`display-2 fw-black mb-4 ${colorNombre}`} style={{textShadow: sombraNombre}}>
+                    {ultimo_eliminado?.toUpperCase()}
+                </h1>
                 
                 {termino ? (
                     <div className={`card-shamona p-4 mt-4 shadow-lg ${ganador === 'CIUDADANOS' ? 'border-success' : 'border-danger'}`}
@@ -236,9 +250,8 @@ export const ImpostorOnline = ({ datos, salir }: Props) => {
                                 {reiniciando ? <Spinner size="sm"/> : "🔄 JUGAR OTRA VEZ"}
                             </button>
                             
-                            {/* 👇 ACÁ ESTÁ EL CAMBIO CLAVE: Salir con anuncio */}
-                            <button className="btn btn-outline-light py-2 border-0" onClick={handleSalir}>
-                                Salir al Menú
+                            <button className="btn btn-outline-secondary py-3 fw-bold rounded-pill" onClick={handleSalir}>
+                                ❌ SALIR AL MENÚ
                             </button>
                         </>
                     ) : (
@@ -250,12 +263,11 @@ export const ImpostorOnline = ({ datos, salir }: Props) => {
             )}
             
             {!soyHost && (
-                <div className="animate-pulse mt-4">
+                <div className="animate-pulse mt-4 w-100" style={{maxWidth: '400px'}}>
                     <p className="text-white-50 small">{termino ? "Esperando al Host..." : "El juego continúa..."}</p>
-                    {/* Los invitados también ven anuncio al salir si el juego terminó */}
                     {termino && (
-                        <button className="btn btn-link text-white-50 mt-3" onClick={handleSalir}>
-                            Salir
+                        <button className="btn btn-outline-secondary w-100 py-2 rounded-pill mt-3" onClick={handleSalir}>
+                            ❌ Salir
                         </button>
                     )}
                 </div>
