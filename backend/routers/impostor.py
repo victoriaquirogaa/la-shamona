@@ -1,42 +1,52 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from typing import Optional # <--- 1. AGREGÁ ESTA IMPORTACIÓN
+from typing import Optional
 from database import db
 import random
-from routers.utils import generar_codigo_sala
 from routers.usuarios import verificar_acceso_usuario 
 
 router = APIRouter()
 
-# --- MODELO DE ENTRADA BLINDADO ---
-class CrearPartidaImpostor(BaseModel):
+# --- MODELOS ---
+
+# Para INICIAR el juego en una sala que YA EXISTE (Lobby)
+class IniciarJuegoInput(BaseModel):
+    codigo: str  # El código de la sala donde están todos esperando
+    categoria_id: Optional[str] = "mix" # Si no mandan nada, es Mix
+    device_id: Optional[str] = "invitado"
+
+# Para jugar OFFLINE (Pasando el celu)
+class CrearPartidaLocalInput(BaseModel):
     jugadores: list[str]
-    # Usamos Optional para que si el frontend manda null, no explote
-    categoria_id: Optional[str] = None 
+    categoria_id: Optional[str] = "mix"
     device_id: Optional[str] = "invitado_offline"
 
-# --- FUNCIÓN AUXILIAR ---
+# --- HELPER: LÓGICA DEL MIX ---
 def obtener_datos_categoria(cat_id=None):
     coleccion_ref = db.collection('categorias_impostor')
 
-    if cat_id:
+    # A. CASO ESPECÍFICO (Ej: "comida")
+    if cat_id and cat_id != "mix":
         doc = coleccion_ref.document(cat_id).get()
         if not doc.exists:
-            raise HTTPException(status_code=404, detail="Categoría no encontrada")
+            # Fallback seguro por si borraste la categoría
+            return "General", ["Pizza", "Superman", "Guitarra", "Playa", "Messi"], False
         data = doc.to_dict()
-        return data['titulo'], data['palabras'], data.get('es_premium', False)
+        return data.get('titulo', 'General'), data.get('palabras', []), data.get('es_premium', False)
+    
+    # B. CASO MIX / ALEATORIO
     else:
-        # Si es aleatoria
+        # Traemos todas las categorías
         docs = list(coleccion_ref.stream())
         if not docs:
-            # Fallback por si la BD está vacía
             return "General", ["Pizza", "Superman", "Guitarra", "Playa", "Messi"], False
         
+        # Elegimos una al azar
         doc_elegido = random.choice(docs)
         data = doc_elegido.to_dict()
         return data.get('titulo', 'General'), data.get('palabras', []), data.get('es_premium', False)
 
-# --- NUEVO: LISTAR CATEGORÍAS DISPONIBLES ---
+# --- ENDPOINT 1: LISTAR CATEGORÍAS (Para el selector del Host) ---
 @router.get("/categorias")
 def listar_categorias():
     try:
@@ -54,61 +64,74 @@ def listar_categorias():
         print(f"Error trayendo categorias: {e}")
         return []
 
-# --- RUTA 1: ONLINE ---
-@router.post("/crear")
-def crear_partida(datos: CrearPartidaImpostor):
-    if len(datos.jugadores) < 3:
-        raise HTTPException(status_code=400, detail="Se necesitan mínimo 3 jugadores")
+# --- ENDPOINT 2: INICIAR ONLINE (Usando la sala existente) ---
+@router.post("/iniciar")
+def iniciar_juego_online(datos: IniciarJuegoInput):
+    # 1. Buscamos la sala en 'salas_online'
+    doc_ref = db.collection('salas_online').document(datos.codigo)
+    doc = doc_ref.get()
 
-    jugadores_limpios = [j.strip().title() for j in datos.jugadores]
+    if not doc.exists:
+        raise HTTPException(status_code=404, detail="Sala no encontrada")
+
+    sala = doc.to_dict()
+    jugadores = sala.get('jugadores', [])
+
+    # 2. Validamos jugadores
+    if len(jugadores) < 3:
+        raise HTTPException(status_code=400, detail="Faltan jugadores (mínimo 3)")
+
+    # 3. Elegimos Categoría (Mix o Específica)
     titulo_cat, lista_palabras, es_premium = obtener_datos_categoria(datos.categoria_id)
-    
-    if es_premium:
-        # Si no hay device_id, asumimos que no tiene permiso
-        dev_id = datos.device_id or "invitado"
-        if not verificar_acceso_usuario(dev_id):
-             raise HTTPException(status_code=403, detail="Categoría Premium bloqueda.")
 
+    # 4. Seguridad Premium
+    # Si es Mix, pasa gratis (asumimos que vio video en frontend). Si es específica premium, validamos.
+    if es_premium and datos.categoria_id != "mix":
+        if not verificar_acceso_usuario(datos.device_id):
+             raise HTTPException(status_code=403, detail="Categoría Premium bloqueada.")
+
+    # 5. Asignamos Roles
     palabra_secreta = random.choice(lista_palabras)
-    impostor = random.choice(jugadores_limpios)
-    
-    nueva_partida = {
-        "jugadores": jugadores_limpios,
-        "categoria": titulo_cat,
-        "palabra_secreta": palabra_secreta,
+    impostor = random.choice(jugadores)
+
+    # 6. Actualizamos la sala para que arranque el juego
+    datos_partida = {
         "impostor": impostor,
-        "estado": "jugando"
+        "palabra_secreta": palabra_secreta,
+        "categoria": titulo_cat,
+        "eliminados": [],
+        "ultimo_eliminado": None,
+        "ganador": None,
+        "mensaje_final": None,
+        "votos": {}
     }
-    
-    codigo_sala = generar_codigo_sala()
-    # (Simplifiqué la lógica de guardado para que sea más clara, es igual a la tuya)
-    db.collection('partidas_impostor').document(codigo_sala).set(nueva_partida)
-    
-    return {
-        "mensaje": "Partida creada", 
-        "id_sala": codigo_sala,
-        "categoria": titulo_cat
-    }
-    
-# --- RUTA 2: OFFLINE (LOCAL) ---
+
+    doc_ref.update({
+        "estado": "jugando",     # Esto dispara el cambio de pantalla en el frontend
+        "juego_actual": "impostor",
+        "fase": "RONDA",         # Fase inicial del Impostor
+        "datos_juego": datos_partida
+    })
+
+    return {"mensaje": "Juego iniciado", "categoria": titulo_cat}
+
+# --- ENDPOINT 3: CREAR LOCAL (OFFLINE / PASAMANOS) ---
 @router.post("/crear-local")
-def crear_partida_local(datos: CrearPartidaImpostor):
-    # Validación básica
+def crear_partida_local(datos: CrearPartidaLocalInput):
     if len(datos.jugadores) < 3:
         raise HTTPException(status_code=400, detail="Se necesitan mínimo 3 jugadores")
 
     jugadores_limpios = [j.strip().title() for j in datos.jugadores]
-
-    # 1. Buscar datos
+    
+    # Mix / Categoría
     titulo_cat, lista_palabras, es_premium = obtener_datos_categoria(datos.categoria_id)
 
-    # 2. Filtro Premium (Opcional en local, pero lo dejamos)
-    if es_premium:
+    # Seguridad Local
+    if es_premium and datos.categoria_id != "mix":
         dev_id = datos.device_id or "invitado_offline"
         if not verificar_acceso_usuario(dev_id):
             raise HTTPException(status_code=403, detail="Categoría Premium.")
 
-    # 3. Lógica del juego
     palabra_secreta = random.choice(lista_palabras)
     impostor = random.choice(jugadores_limpios)
     
@@ -126,24 +149,33 @@ def crear_partida_local(datos: CrearPartidaImpostor):
         "distribucion": roles_asignados 
     }
 
-# --- RUTA 3: MISION ---
-@router.get("/{id_sala}/mi-mision")
-def obtener_mision(id_sala: str, nombre_jugador: str):
-    doc = db.collection('partidas_impostor').document(id_sala).get()
+# --- ENDPOINT 4: OBTENER MISIÓN (ONLINE) ---
+# Ahora busca correctamente en 'salas_online'
+@router.get("/{codigo_sala}/mi-mision")
+def obtener_mision(codigo_sala: str, nombre_jugador: str):
+    doc = db.collection('salas_online').document(codigo_sala).get()
     if not doc.exists:
         raise HTTPException(status_code=404, detail="Sala no encontrada.")
     
-    data = doc.to_dict()
-    nombre_limpio = nombre_jugador.strip().title()
+    sala = doc.to_dict()
     
-    if nombre_limpio not in data['jugadores']:
-        raise HTTPException(status_code=403, detail="No estás en la partida.")
+    # Validamos que el juego sea impostor
+    if sala.get('juego_actual') != 'impostor':
+         # Si la sala existe pero no están jugando impostor, devolvemos algo neutro o error
+         raise HTTPException(status_code=400, detail="No se está jugando al Impostor.")
 
-    es_impostor = (data['impostor'] == nombre_limpio)
+    datos_juego = sala.get('datos_juego', {})
+    
+    nombre_limpio = nombre_jugador.strip().title()
+    if nombre_limpio not in sala.get('jugadores', []):
+         raise HTTPException(status_code=403, detail="No estás en la sala.")
+
+    palabra = datos_juego.get('palabra_secreta')
+    impostor = datos_juego.get('impostor')
+
+    es_impostor = (impostor == nombre_limpio)
     
     if es_impostor:
         return {"rol": "IMPOSTOR", "descripcion": "Engaña a todos.", "palabra": "???"}
     else:
-        return {"rol": "CIUDADANO", "descripcion": f"Palabra: {data['palabra_secreta']}", "palabra": data['palabra_secreta']}
-    
-# --- AGREGAR AL FINAL DE backend/routers/impostor.py ---
+        return {"rol": "CIUDADANO", "descripcion": f"Palabra: {palabra}", "palabra": palabra}

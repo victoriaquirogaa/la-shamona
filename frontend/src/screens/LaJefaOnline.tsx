@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
-import { Container, Button, Modal, Row, Col, Spinner, Badge } from 'react-bootstrap';
+import { Container, Modal, Row, Col, Spinner, Badge } from 'react-bootstrap';
 import { api } from '../lib/api';
 import Swal from 'sweetalert2';
 import '../App.css'; 
+import { AdService } from '../lib/AdMobUtils'; // 👈 USAMOS EL SERVICIO NUEVO
 
 interface Props {
   datos: { codigo: string; nombre: string; soyHost: boolean };
@@ -31,7 +32,7 @@ export const LaJefaOnline = ({ datos, salir }: Props) => {
         const data = await api.getSalaOnline(datos.codigo);
         setSala(data);
         
-        // CHECK DORMILÓN
+        // CHECK DORMILÓN (Si cambió el turno y yo tenía el dedito -> PERDÍ)
         const turno = data.turno_actual || data.datos_juego?.turno_actual;
         if (turno === datos.nombre && turnoAnterior.current !== datos.nombre) {
              setTengoDedito((prev) => {
@@ -49,6 +50,12 @@ export const LaJefaOnline = ({ datos, salir }: Props) => {
     return () => clearInterval(intervalo);
   }, [datos.codigo, datos.nombre]);
 
+  // 🚪 FUNCIÓN SEGURA PARA SALIR (Con Anuncio)
+  const handleSalir = async () => {
+      await AdService.mostrarIntersticial();
+      salir();
+  };
+
   // Si no cargó la sala básica, spinner
   if (!sala) return <Container className="min-vh-100 d-flex justify-content-center align-items-center bg-dark"><Spinner animation="border" variant="danger"/></Container>;
 
@@ -56,32 +63,18 @@ export const LaJefaOnline = ({ datos, salir }: Props) => {
   const dj = sala.datos_juego || {};
   const datosVacios = Object.keys(dj).length === 0;
 
-  // FUNCIÓN PARA FORZAR INICIO (Si los datos vinieron vacíos)
   // FUNCIÓN PARA FORZAR INICIO (Versión Kickstart 🦵)
   const forzarInicio = async () => {
       setReiniciando(true);
       try {
           console.log("🛠️ Intentando inicializar mazo a la fuerza...");
-          
-          // PASO 1: Aseguramos que el estado sea 'jugando'
           await api.iniciarJuegoOnline(datos.codigo, 'la-jefa');
-          
-          // Esperamos 1 segundo para que el servidor procese
           await new Promise(r => setTimeout(r, 1000));
-
-          // PASO 2: LA PATADA
-          // Intentamos sacar una carta aunque no veamos el mazo.
-          // Esto suele obligar al servidor a generar el mazo si no existe.
           console.log("🃏 Pidiendo primera carta para despertar al mazo...");
           await api.sacarCartaOnline(datos.codigo);
-          
       } catch (e) {
           console.error("Falló la inicialización manual:", e);
-          Swal.fire({
-              title: 'Error de Servidor',
-              text: 'El juego arranca pero no genera cartas. Es probable que haya un error en el código del Backend (Python/Node).',
-              icon: 'error'
-          });
+          Swal.fire({ title: 'Error', text: 'El juego no responde. Probá crear otra sala.', icon: 'error' });
       }
       setReiniciando(false);
   };
@@ -103,7 +96,7 @@ export const LaJefaOnline = ({ datos, salir }: Props) => {
                       <div className="animate-pulse text-info fw-bold">Esperando que el Host reparta...</div>
                   )}
                   
-                  <button className="btn btn-link text-danger mt-4" onClick={salir}>Salir</button>
+                  <button className="btn btn-link text-danger mt-4" onClick={handleSalir}>Salir</button>
               </div>
           </Container>
       );
@@ -111,7 +104,6 @@ export const LaJefaOnline = ({ datos, salir }: Props) => {
   // --------------------------------------------------------
 
   // DATOS NORMALES
-  // Buscamos fase y turno en ambos lados por seguridad
   const fase = sala.fase || dj.fase || "ESPERANDO";
   const turnoActual = sala.turno_actual || dj.turno_actual || "???";
   const carta = dj.carta_actual;
@@ -157,7 +149,7 @@ export const LaJefaOnline = ({ datos, salir }: Props) => {
       {/* HEADER */}
       <div className="d-flex justify-content-between mb-3 px-2 align-items-center">
          <div className="badge bg-secondary border border-secondary fw-normal">SALA: {datos.codigo}</div>
-         <button className="btn btn-sm btn-outline-danger border-0" onClick={salir}>SALIR</button>
+         <button className="btn btn-sm btn-outline-danger border-0" onClick={handleSalir}>SALIR</button>
       </div>
 
       <div className="mb-3">
@@ -189,7 +181,7 @@ export const LaJefaOnline = ({ datos, salir }: Props) => {
           {fase === 'ACCION' && carta && (
               <div className="text-center animate-in flip-in-y w-100 d-flex flex-column align-items-center">
                   <div className="card-shamona bg-white text-dark mb-4 position-relative shadow-lg" 
-                       style={{ width: '260px', height: '380px', borderRadius: '15px', border: '8px solid white' }}>
+                        style={{ width: '260px', height: '380px', borderRadius: '15px', border: '8px solid white' }}>
                       <div className="d-flex flex-column justify-content-between h-100 p-3">
                           <div className="d-flex justify-content-between align-items-start">
                               <h1 className="fw-black m-0 lh-1 display-4">{carta.numero}</h1>

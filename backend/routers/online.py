@@ -5,6 +5,7 @@ import random
 import string
 from datetime import datetime, timedelta, timezone # <--- AGREGAR ESTO
 from google.cloud.firestore import FieldFilter
+from typing import Optional
 
 router = APIRouter()
 
@@ -185,6 +186,36 @@ def preparar_partida_impostor(jugadores, categoria_id=None):
         "impostor": impostor,
         "votos": {} # Para la fase de votación si la agregamos después
     }
+
+# --- FUNCIÓN AUXILIAR (La que maneja el MIX) ---
+# Pegá esto ANTES de @router.post("/crear")
+def obtener_datos_categoria(cat_id=None):
+    coleccion_ref = db.collection('categorias_impostor')
+
+    # A. CASO ESPECÍFICO (Ej: "comida")
+    if cat_id and cat_id != "mix":
+        doc = coleccion_ref.document(cat_id).get()
+        if not doc.exists:
+            from fastapi import HTTPException
+            raise HTTPException(status_code=404, detail="Categoría no encontrada")
+        
+        data = doc.to_dict()
+        return data.get('titulo', 'General'), data.get('palabras', []), data.get('es_premium', False)
+    
+    # B. CASO MIX / ALEATORIO
+    else:
+        # Traemos todas las categorías
+        docs = list(coleccion_ref.stream())
+        
+        if not docs:
+            # Fallback por si la BD está vacía
+            return "General", ["Pizza", "Superman", "Guitarra", "Playa", "Messi"], False
+        
+        # Elegimos una al azar
+        doc_elegido = random.choice(docs)
+        data = doc_elegido.to_dict()
+        
+        return data.get('titulo', 'General'), data.get('palabras', []), data.get('es_premium', False)
 
 # --- ENDPOINTS DE LOBBY (CREAR / UNIRSE / ESTADO) ---
 # Estos eran los que faltaban y por eso no creaba la sala
@@ -782,3 +813,4 @@ def finalizar_juego(datos: AccionPiramideInput):
         "estado": "esperando"
     })
     return {"status": "ok", "mensaje": "Juego finalizado"}
+

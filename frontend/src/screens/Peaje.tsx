@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
-import { Container, Row, Col } from 'react-bootstrap';
+import { Container } from 'react-bootstrap';
 import { api } from '../lib/api';
-import '../App.css'; // 👈 Importar estilos
+import '../App.css'; 
+import { AdService } from '../lib/AdMobUtils'; // 👈 USAMOS EL SERVICIO NUEVO
 
 interface Props { volver: () => void; }
 
@@ -23,33 +24,55 @@ export const Peaje = ({ volver }: Props) => {
   // --- LÓGICA DE JUGADA ---
   const jugar = async (pred: string) => {
     if (!sala) return;
-    const d = await api.jugarTurnoPeaje(sala, pred);
-    setCarta(d.carta_nueva);
-    setPos(d.nueva_posicion);
-    setMensaje(d.mensaje);
+    
+    try {
+        const d = await api.jugarTurnoPeaje(sala, pred);
+        
+        // 🚨 DETECTAR SI PERDIÓ (Volvió al principio)
+        if (d.nueva_posicion === 0 && pos > 0) {
+            console.log("💥 ¡Choque! Volviste al principio -> Publicidad");
+            await AdService.mostrarIntersticial();
+        }
+
+        setCarta(d.carta_nueva);
+        setPos(d.nueva_posicion);
+        setMensaje(d.mensaje);
+    } catch (e) {
+        console.error("Error jugando", e);
+    }
+  };
+
+  // --- SALIR CON ANUNCIO ---
+  const handleSalir = async () => {
+      await AdService.mostrarIntersticial();
+      volver();
+  };
+
+  // --- REINICIAR ---
+  const handleReiniciar = async () => {
+      await AdService.mostrarIntersticial();
+      window.location.reload();
   };
 
   // --- RENDERIZADO DE LAS CASILLAS DEL CAMINO ---
   const renderCasilla = (num: number, tipo: 'normal' | 'peaje' | 'meta') => {
     const active = pos === num;
     
-    // Definimos colores según el tipo
     let borderColor = 'rgba(255,255,255,0.2)';
     let bgColor = 'rgba(0,0,0,0.3)';
     let icon: string | number = num + 1;
 
     if (tipo === 'peaje') {
         borderColor = 'var(--neon-pink)';
-        icon = '🛑'; // Icono de Stop
+        icon = '🛑'; 
     }
     if (tipo === 'meta') {
         borderColor = '#00ff9d';
         icon = '🏆';
     }
 
-    // Estilo si es la posición actual del auto
     if (active) {
-        borderColor = '#ffd700'; // Dorado
+        borderColor = '#ffd700'; 
         bgColor = 'rgba(255, 215, 0, 0.2)';
         icon = '🏎️';
     }
@@ -78,7 +101,7 @@ export const Peaje = ({ volver }: Props) => {
       {/* HEADER */}
       <div className="w-100 d-flex justify-content-between align-items-center mb-4 px-2" style={{maxWidth: '600px'}}>
         <div className="titulo-neon m-0 fs-3">EL PEAJE 🚧</div>
-        <button className="btn btn-sm btn-outline-light rounded-pill px-3" onClick={volver}>SALIR</button>
+        <button className="btn btn-sm btn-outline-light rounded-pill px-3" onClick={handleSalir}>SALIR</button>
       </div>
 
       {/* TABLERO (Roadmap) */}
@@ -127,7 +150,7 @@ export const Peaje = ({ volver }: Props) => {
 
       {/* CONTROLES */}
       {pos > 6 ? (
-        <button className="btn-neon-main py-3 px-5 fw-bold bg-success border-success text-white" onClick={() => window.location.reload()}>
+        <button className="btn-neon-main py-3 px-5 fw-bold bg-success border-success text-white" onClick={handleReiniciar}>
             🏆 JUGAR OTRA VEZ
         </button>
       ) : (

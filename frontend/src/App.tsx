@@ -1,6 +1,16 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { Capacitor } from '@capacitor/core'; // 👈 Importante para detectar si es iOS
+
+// 👇 Importamos el plugin que instalaste para el permiso de rastreo en iOS
+import { AppTrackingTransparency } from 'capacitor-plugin-app-tracking-transparency';
+
+import { 
+  AdMob, 
+  BannerAdSize, 
+  BannerAdPosition 
+} from '@capacitor-community/admob';
 
 // PANTALLAS PRINCIPALES
 import { Welcome } from './screens/Welcome';
@@ -14,19 +24,49 @@ import { Peaje } from './screens/Peaje';
 import { JuegoSimple } from './screens/JuegoSimple'; 
 import { Impostor } from './screens/Impostor';
 
-// NOTA: Ya no necesitamos importar los juegos ONLINE acá (ImpostorOnline, VotacionOnline, etc.)
-// porque ahora los maneja el MenuOnline internamente.
-
 const AppController = () => {
   const { user } = useAuth();
   const [vista, setVista] = useState("home");
-  
-  // No necesitamos guardar datosOnline acá, porque el MenuOnline se encarga.
-  
+
+  // --- 💸 CONFIGURACIÓN DE PUBLICIDAD (ADMOB) 💸 ---
+  useEffect(() => {
+    const iniciarPublicidad = async () => {
+      try {
+        
+        // 1. SOLO PARA IOS: Pedir permiso de rastreo (Cartelito de Apple)
+        if (Capacitor.getPlatform() === 'ios') {
+            const status = await AppTrackingTransparency.requestPermission();
+            console.log("Permiso iOS Tracking:", status);
+        }
+
+        // 2. Inicializar AdMob (Sin la línea roja que daba error)
+        await AdMob.initialize({
+          initializeForTesting: true,
+        });
+
+        // 3. Mostrar Banner Abajo
+        await AdMob.showBanner({
+          adId: 'ca-app-pub-3940256099942544/6300978111', 
+          adSize: BannerAdSize.BANNER,
+          position: BannerAdPosition.BOTTOM_CENTER, 
+          margin: 0, 
+          isTesting: true 
+        });
+        
+        console.log('Publicidad iniciada correctamente');
+      } catch (e) {
+        console.error('Error al iniciar publicidad:', e);
+      }
+    };
+
+    if (user) {
+      iniciarPublicidad();
+    }
+  }, [user]);
+  // ---------------------------------------------------
+
   if (!user) return <Welcome />;
 
-  // Esta función queda solo para cumplir con lo que pide el componente, 
-  // pero ya no cambia la vista principal.
   const handleJuegoOnlineIniciado = (juego: string, codigo: string, soyHost: boolean, nombre: string) => {
       console.log("Juego iniciado. MenuOnline se encarga de mostrarlo.");
   };
@@ -36,7 +76,7 @@ const AppController = () => {
     case 'home': return <Home irA={setVista} />;
     case 'menu-offline': return <MenuOffline irA={setVista} volver={() => setVista('home')} />;
 
-    // --- JUEGOS OFFLINE (Estos sí se quedan acá) ---
+    // --- JUEGOS OFFLINE ---
     case 'lajefa': return <LaJefa volver={() => setVista('menu-offline')} />;
     case 'peaje': return <Peaje volver={() => setVista('menu-offline')} />;
     case 'juego-simple': return <JuegoSimple juego="yo-nunca" volver={() => setVista('menu-offline')} />;
@@ -46,12 +86,9 @@ const AppController = () => {
     case 'impostor': return <Impostor volver={() => setVista('menu-offline')} />;
 
     // --- ONLINE ---
-    // Acá está la clave: Solo mostramos el menú. El menú decide si muestra el lobby o el juego.
     case 'menu-online':
       return <MenuOnline volver={() => setVista('home')} onJuegoIniciado={handleJuegoOnlineIniciado} />;
       
-    // BORRAMOS TODO LO DEMÁS QUE DABA ERROR
-    
     default:
       return <Home irA={setVista} />;
   }

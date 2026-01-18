@@ -4,7 +4,8 @@ import { api } from '../lib/api';
 // IMPORTANTE: Chart.js
 import { Chart as ChartJS, ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement } from 'chart.js';
 import { Pie, Bar } from 'react-chartjs-2';
-import '../App.css'; // 👈 Estilos neón
+import '../App.css'; 
+import { AdService } from '../lib/AdMobUtils'; // 👈 USAMOS EL SERVICIO NUEVO
 
 // Registramos los componentes de los gráficos
 ChartJS.register(ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement);
@@ -33,6 +34,12 @@ export const VotacionOnline = ({ datos, salir }: Props) => {
     return () => clearInterval(intervalo);
   }, [datos.codigo]);
 
+  // --- SALIR CON ANUNCIO ---
+  const handleSalir = async () => {
+      await AdService.mostrarIntersticial();
+      salir();
+  };
+
   if (loading || !sala) return <Container className="pt-5 min-vh-100 bg-dark text-center d-flex align-items-center justify-content-center"><Spinner animation="border" variant="info"/></Container>;
 
   const { datos_juego } = sala;
@@ -59,14 +66,14 @@ export const VotacionOnline = ({ datos, salir }: Props) => {
       } : {}
   };
 
-  // 1. Torta (Rico vs Pobre) - Colores brillantes
+  // 1. Torta (Rico vs Pobre)
   const dataPie = {
     labels: Object.keys(resultados || {}),
     datasets: [{
       data: Object.values(resultados || {}),
-      backgroundColor: ['#ff0055', '#00d4ff', '#ffd700', '#bd00ff'], // Rosa, Cian, Dorado, Violeta
+      backgroundColor: ['#ff0055', '#00d4ff', '#ffd700', '#bd00ff'], 
       borderWidth: 2,
-      borderColor: '#212529' // Borde oscuro para separar
+      borderColor: '#212529'
     }],
   };
 
@@ -89,7 +96,7 @@ export const VotacionOnline = ({ datos, salir }: Props) => {
       {/* HEADER */}
       <div className="w-100 d-flex justify-content-between align-items-center mb-5 px-2" style={{maxWidth: '600px'}}>
            <div className="badge bg-transparent border border-info text-info px-3 py-2 rounded-pill fw-normal">{titulo?.toUpperCase()}</div>
-           <button className="btn btn-sm btn-outline-light border-0 opacity-50" onClick={salir}>SALIR</button>
+           <button className="btn btn-sm btn-outline-light border-0 opacity-50" onClick={handleSalir}>SALIR</button>
       </div>
 
       {/* PREGUNTA */}
@@ -105,10 +112,6 @@ export const VotacionOnline = ({ datos, salir }: Props) => {
             {opciones?.map((op: string) => (
               <button
                 key={op}
-                // 🚨 CORRECCIÓN: Saqué 'text-white' de la condición 'else'.
-                // Antes: ... : 'btn-outline-light text-white'
-                // Ahora: ... : 'btn-outline-light'
-                // Esto deja que Bootstrap maneje el color negro al pasar el mouse.
                 className={`btn py-3 fw-bold fs-5 position-relative overflow-hidden ${yaVote === op ? 'btn-light text-dark shadow-lg' : 'btn-outline-light'}`}
                 style={{
                     borderRadius: '50px',
@@ -162,7 +165,7 @@ export const VotacionOnline = ({ datos, salir }: Props) => {
                 <button className="btn-neon-main py-3 fw-bold fs-5" onClick={handleSiguiente}>
                     🔄 OTRA PREGUNTA
                 </button>
-                <button className="btn btn-link text-danger text-decoration-none mt-2" onClick={salir}>
+                <button className="btn btn-link text-danger text-decoration-none mt-2" onClick={handleSalir}>
                     Terminar juego
                 </button>
              </div>
