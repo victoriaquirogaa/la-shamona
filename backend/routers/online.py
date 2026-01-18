@@ -6,6 +6,7 @@ import string
 from datetime import datetime, timedelta, timezone # <--- AGREGAR ESTO
 from google.cloud.firestore import FieldFilter
 from typing import Optional
+from firebase_admin import firestore
 
 router = APIRouter()
 
@@ -21,6 +22,17 @@ class IniciarJuegoInput(BaseModel):
     codigo: str
     juego: str
     categoria_id: str = None # <--- NUEVO CAMPO OPCIONAL
+
+# --- Agregá esto junto a los otros modelos en online.py ---
+
+class VotoInput(BaseModel):
+    codigo: str
+    votante: str
+    acusado: str
+
+class FaseInput(BaseModel):
+    codigo: str
+    fase: str
 
 class ReportarTragoInput(BaseModel):
     codigo: str
@@ -454,18 +466,11 @@ def toman_todos(datos: IniciarJuegoInput):
 
 # --- PEGAR AL FINAL DE backend/routers/online.py ---
 
-class VotoInput(BaseModel):
-    codigo: str
-    votante: str
-    acusado: str
-
 @router.post("/votar")
 def emitir_voto(datos: VotoInput):
-    # 1. Limpieza de nombres
+    # 1. Limpieza y Validación Básica
     votante_limpio = datos.votante.strip().title()
     acusado_limpio = datos.acusado.strip().title()
-
-    print(f"\n📩 VOTO ENTRANTE: {votante_limpio} -> {acusado_limpio}")
 
     doc_ref = db.collection('salas_online').document(datos.codigo)
     doc = doc_ref.get()
@@ -477,76 +482,93 @@ def emitir_voto(datos: VotoInput):
     datos_juego = sala.get('datos_juego', {})
     eliminados = datos_juego.get('eliminados', [])
     
-    # 2. Obtener lista de vivos (sin duplicados)
-    raw_players = [j for j in sala['jugadores'] if j not in eliminados]
-    jugadores_vivos = list(set([j.strip().title() for j in raw_players]))
-    
-    if votante_limpio not in jugadores_vivos:
-        print(f"⚠️ Rechazado: {votante_limpio} no está vivo.")
+    if votante_limpio in eliminados:
         return {"ok": False, "error": "No estás vivo"}
 
-    # --- 3. GUARDADO BLINDADO (La Solución) ---
-    # En lugar de reescribir todo 'votos', actualizamos SOLO el campo de este jugador.
-    # Esto evita que se borren votos si dos personas votan rápido.
-    
-    # Primero guardamos este voto específico
+    # 2. GUARDAR EL VOTO
     doc_ref.update({
         f"datos_juego.votos.{votante_limpio}": acusado_limpio
     })
     
-    # --- 4. LEEMOS DE NUEVO PARA VER EL TOTAL REAL ---
-    # (Como acabamos de escribir, leemos de nuevo para tener la foto completa)
-    doc_actualizado = doc_ref.get().to_dict()
-    votos_actuales = doc_actualizado['datos_juego'].get('votos', {})
+    # --- 🔎 LÓGICA DE CIERRE AUTOMÁTICO 🔎 ---
+    sala_actualizada = doc_ref.get().to_dict()
+    votos_actuales = sala_actualizada['datos_juego'].get('votos', {})
     
-    cantidad_votos = len(votos_actuales)
-    total_vivos = len(jugadores_vivos)
+    # Calculamos vivos
+    jugadores_totales = sala_actualizada['jugadores']
+    cantidad_vivos = len(jugadores_totales) - len(eliminados)
     
-    print(f"📊 ESTADO ACTUAL: {cantidad_votos}/{total_vivos} votos.")
-    print(f"   - Votos registrados: {list(votos_actuales.keys())}")
-
-    # --- 5. VERIFICAR FIN DE RONDA ---
-    if cantidad_votos >= total_vivos:
-        print("✅ ¡RONDA TERMINADA! Calculando eliminado...")
+    # SI VOTARON TODOS LOS VIVOS...
+    if len(votos_actuales) >= cantidad_vivos:
+        print("⚡ ¡Todos votaron! Calculando resultados...")
         
+        # A. CONTAR VOTOS
         conteo = {}
-        for ac in votos_actuales.values():
-            conteo[ac] = conteo.get(ac, 0) + 1
-            
-        eliminado = max(conteo, key=conteo.get)
-        eliminados.append(eliminado)
+        for votante, acusado in votos_actuales.items():
+            if acusado:
+                conteo[acusado] = conteo.get(acusado, 0) + 1
         
-        # Chequear ganador
-        impostor = datos_juego['impostor']
-        nuevos_vivos = [j for j in sala['jugadores'] if j not in eliminados]
-        ganador = None
-        mensaje = ""
+        if not conteo: return {"ok": True, "estado": "VOTOS_VACIOS"}
         
-        if eliminado == impostor:
-            ganador = "CIUDADANOS"
-            mensaje = f"¡Atraparon al Impostor! Era {impostor}."
-        elif len(nuevos_vivos) <= 2:
-            ganador = "IMPOSTOR"
-            mensaje = "¡El Impostor ganó! Quedan 2 personas."
-            
-        doc_ref.update({
-            "datos_juego.eliminados": eliminados,
-            "fase": "RESULTADO_VOTACION" if not ganador else "FIN_PARTIDA",
-            "datos_juego.ultimo_eliminado": eliminado,
-            "datos_juego.ganador": ganador,
-            "datos_juego.mensaje_final": mensaje
-        })
-        return {"ok": True, "estado": "RONDA_FINALIZADA"}
-    
-    return {
-        "ok": True, 
-        "estado": "VOTO_GUARDADO", 
-        "faltan": [j for j in jugadores_vivos if j not in votos_actuales]
-    }
+        # B. OBTENER EL NÚMERO MÁS ALTO DE VOTOS
+        max_votos = max(conteo.values())
+        
+        # C. BUSCAR *TODOS* LOS QUE TENGAN ESE MÁXIMO (Aquí estaba el error antes)
+        los_mas_votados = [jugador for jugador, cant in conteo.items() if cant == max_votos]
 
-class FaseInput(BaseModel):
-    codigo: str
-    fase: str
+        # --- D. RESOLVER EMPATE O ELIMINACIÓN ---
+        
+        # CASO 1: EMPATE (Más de 1 persona tiene el máximo)
+        if len(los_mas_votados) > 1:
+            nombres = ", ".join(los_mas_votados)
+            doc_ref.update({
+                "datos_juego.votos": {}, # Borramos votos
+                # 👇 ESTE MENSAJE ES EL QUE LEERÁ TU FRONTEND
+                "datos_juego.mensaje_sistema": f"¡EMPATE entre {nombres}! Nadie se va. Voten de nuevo.",
+                "fase": "VOTACION" 
+            })
+            return {"ok": True, "estado": "EMPATE"}
+            
+        # CASO 2: HAY UN SOLO ELIMINADO
+        else:
+            eliminado = los_mas_votados[0]
+            impostor_real = datos_juego.get('impostor')
+            era_impostor = (eliminado == impostor_real)
+            
+            nuevo_estado_juego = "jugando"
+            ganador = None
+            mensaje_final = None
+            
+            if era_impostor:
+                nuevo_estado_juego = "finalizado"
+                ganador = "CIUDADANOS"
+                mensaje_final = f"¡Atraparon al Impostor! Era {eliminado}."
+            else:
+                vivos_restantes = cantidad_vivos - 1
+                if vivos_restantes <= 2:
+                    nuevo_estado_juego = "finalizado"
+                    ganador = "IMPOSTOR"
+                    mensaje_final = f"El Impostor ({impostor_real}) gana por mayoría."
+            
+            update_data = {
+                "datos_juego.ultimo_eliminado": eliminado,
+                "datos_juego.es_impostor_eliminado": era_impostor,
+                "datos_juego.votos": {}, 
+                "datos_juego.eliminados": firestore.ArrayUnion([eliminado])
+            }
+
+            if nuevo_estado_juego == "finalizado":
+                update_data["estado"] = "finalizado"
+                update_data["fase"] = "FIN_PARTIDA"
+                update_data["datos_juego.ganador"] = ganador
+                update_data["datos_juego.mensaje_final"] = mensaje_final
+            else:
+                update_data["fase"] = "RESULTADO_VOTACION" 
+
+            doc_ref.update(update_data)
+            return {"ok": True, "estado": "ELIMINADO", "jugador": eliminado}
+
+    return {"ok": True, "estado": "VOTO_GUARDADO"}
 
 @router.post("/cambiar-fase")
 def cambiar_fase(datos: FaseInput):

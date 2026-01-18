@@ -150,4 +150,14 @@ export const api = {
       });
       return response.json();
   },
+
+  cerrarVotacion: async (codigoSala: string) => {
+    // Fíjate que apunte a /impostor, NO a /online
+    const response = await fetch(`${API_URL}/impostor/cerrar-votacion`, { 
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ codigo: codigoSala })
+    });
+    return response.json();
+},
 };

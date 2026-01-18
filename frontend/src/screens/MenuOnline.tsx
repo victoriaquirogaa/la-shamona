@@ -3,6 +3,7 @@ import { Container, Row, Col, Form, Spinner, Modal } from 'react-bootstrap';
 import Swal from 'sweetalert2';
 import { api } from '../lib/api';
 import '../App.css'; 
+import { AdService } from '../lib/AdMobUtils'; // 👈 Asegurate que este archivo esté guardado
 
 // --- IMPORTS DE LOS JUEGOS ---
 import { ImpostorOnline } from './ImpostorOnline';
@@ -21,11 +22,42 @@ export const MenuOnline = ({ volver, onJuegoIniciado }: Props) => {
   const [loading, setLoading] = useState(false);
   const [salaActiva, setSalaActiva] = useState<any>(null);
 
+  // ESTADO PARA EL MENSAJE DE EMPATE/SISTEMA
+  const [ultimoMensaje, setUltimoMensaje] = useState("");
+
   // ESTADOS PARA EL MODAL DE IMPOSTOR
   const [showModalImpostor, setShowModalImpostor] = useState(false);
   const [categorias, setCategorias] = useState<any[]>([]);
-  const [catSeleccionada, setCatSeleccionada] = useState("");
+  const [catSeleccionada, setCatSeleccionada] = useState(""); // "" es Mix por defecto visualmente, pero lógica abajo
   const [loadingCats, setLoadingCats] = useState(false);
+
+  // 🔐 ESTADOS DE DESBLOQUEO (ADS)
+  const [mixDesbloqueado, setMixDesbloqueado] = useState(false);
+  const [vipsDesbloqueadas, setVipsDesbloqueadas] = useState<Set<string>>(new Set()); // Para recordar las VIPs abiertas
+  const [cargandoAnuncio, setCargandoAnuncio] = useState(false);
+
+  // --- HELPERS ---
+  const mostrarAlerta = (icono: any, titulo: string, texto: string) => {
+      Swal.fire({ 
+        icon: icono, 
+        title: titulo, 
+        text: texto, 
+        background: '#212529', 
+        color: '#fff', 
+        confirmButtonColor: '#dc3545' 
+      });
+  }
+
+  // --- ALARMA DE MENSAJES (EMPATE / SISTEMA) ---
+  useEffect(() => {
+    if (salaActiva?.datos_juego?.mensaje_sistema) {
+        const msg = salaActiva.datos_juego.mensaje_sistema;
+        if (msg !== ultimoMensaje && msg !== "") {
+            mostrarAlerta('info', 'Atención', msg);
+            setUltimoMensaje(msg);
+        }
+    }
+  }, [salaActiva]); 
 
   // --- SYNC ---
   useEffect(() => {
@@ -39,8 +71,10 @@ export const MenuOnline = ({ volver, onJuegoIniciado }: Props) => {
                  ...prev,
                  jugadores: data.jugadores,
                  estado: data.estado,
-                 juego_actual: data.juego_actual
+                 juego_actual: data.juego_actual,
+                 datos_juego: data.datos_juego 
              }));
+
              if (data.estado === 'jugando') {
                  const soyHost = data.jugadores[0] === nombre;
                  onJuegoIniciado(data.juego_actual, salaActiva.codigo, soyHost, nombre);
@@ -52,10 +86,6 @@ export const MenuOnline = ({ volver, onJuegoIniciado }: Props) => {
     return () => clearInterval(intervalo);
   }, [salaActiva?.codigo, nombre, onJuegoIniciado]);
 
-  // --- HELPERS ---
-  const mostrarAlerta = (icono: any, titulo: string, texto: string) => {
-      Swal.fire({ icon: icono, title: titulo, text: texto, background: '#212529', color: '#fff', confirmButtonColor: '#dc3545' });
-  }
   
   const salirDeLaSala = () => setSalaActiva(null);
 
@@ -89,7 +119,68 @@ export const MenuOnline = ({ volver, onJuegoIniciado }: Props) => {
       setLoadingCats(true);
       const cats = await api.getCategoriasImpostor();
       setCategorias(cats);
+      
+      // Intentamos seleccionar una GRATIS por defecto si el MIX no está desbloqueado
+      const primeraGratis = cats.find((c: any) => !c.es_premium);
+      if (primeraGratis) setCatSeleccionada(primeraGratis.id);
+      else setCatSeleccionada(""); // Si no hay gratis, queda en mix
+
       setLoadingCats(false);
+  };
+
+  // 👇 FUNCIÓN CENTRALIZADA PARA MANEJAR VIDEOS 👇
+  const lanzarVideo = async (onExito: () => void) => {
+      setCargandoAnuncio(true);
+      await AdService.mirarVideoRecompensa(
+          () => { // ÉXITO
+              onExito();
+              setCargandoAnuncio(false);
+              mostrarAlerta('success', '¡Desbloqueado!', 'Gracias por apoyar la app.');
+          },
+          () => { // FALLO (Igual damos premio)
+              onExito();
+              setCargandoAnuncio(false);
+          }
+      );
+  };
+
+  // 👇 LÓGICA DEL SELECTOR (MIX + VIP) 👇
+  const handleSeleccionCategoria = (e: any) => {
+      const idSeleccionado = e.target.value;
+
+      // --- CASO 1: MIX ---
+      if (idSeleccionado === "") {
+          if (mixDesbloqueado) {
+              setCatSeleccionada("");
+          } else {
+              lanzarVideo(() => {
+                  setMixDesbloqueado(true);
+                  setCatSeleccionada("");
+              });
+          }
+          return;
+      }
+
+      // --- CASO 2: BUSCAR CATEGORIA ---
+      const cat = categorias.find(c => c.id === idSeleccionado);
+
+      // --- CASO 3: ES VIP / PREMIUM ---
+      if (cat?.es_premium) {
+          // Si ya la desbloqueó en esta sesión, pasa de una
+          if (vipsDesbloqueadas.has(idSeleccionado)) {
+              setCatSeleccionada(idSeleccionado);
+          } else {
+              // Si no, video
+              lanzarVideo(() => {
+                  setVipsDesbloqueadas(prev => new Set(prev).add(idSeleccionado));
+                  setCatSeleccionada(idSeleccionado);
+              });
+          }
+          return;
+      }
+
+      // --- CASO 4: NORMAL (GRATIS) ---
+      setCatSeleccionada(idSeleccionado);
   };
 
   const iniciarImpostorConfirmado = async () => {
@@ -117,7 +208,8 @@ export const MenuOnline = ({ volver, onJuegoIniciado }: Props) => {
   };
 
   // --- VISTAS DEL JUEGO ACTIVO ---
-  if (salaActiva?.estado === 'jugando') {
+  if (salaActiva?.estado === 'jugando' || salaActiva?.estado === 'finalizado') {
+      
       const soyHost = salaActiva.jugadores[0] === nombre;
       const juego = salaActiva.juego_actual;
       const accionSalir = soyHost ? volverAlLobby : salirDeLaSala;
@@ -201,7 +293,7 @@ export const MenuOnline = ({ volver, onJuegoIniciado }: Props) => {
                     {/* SALIR */}
                     <div className="mt-4 pt-3 border-top border-secondary opacity-75">
                          <button className="btn btn-link text-danger text-decoration-none small" onClick={() => { setSalaActiva(null); volver(); }}>
-                            ❌ ABANDONAR SALA
+                           ❌ ABANDONAR SALA
                          </button>
                     </div>
                 </div>
@@ -226,7 +318,7 @@ export const MenuOnline = ({ volver, onJuegoIniciado }: Props) => {
                 </div>
             )}
 
-            {/* MODAL IMPOSTOR */}
+            {/* MODAL IMPOSTOR (ACTUALIZADO CON VIDEO REWARDED) */}
             <Modal show={showModalImpostor} onHide={() => setShowModalImpostor(false)} centered dialogClassName="modal-glass">
                 <Modal.Header closeButton closeVariant="white">
                     <Modal.Title className="text-info fw-bold">CONFIGURAR IMPOSTOR 🕵️‍♂️</Modal.Title>
@@ -238,20 +330,34 @@ export const MenuOnline = ({ volver, onJuegoIniciado }: Props) => {
                             <Form.Select 
                                 className="bg-dark text-white border-secondary rounded-pill py-2 fw-bold text-center"
                                 value={catSeleccionada} 
-                                onChange={(e) => setCatSeleccionada(e.target.value)}
+                                onChange={handleSeleccionCategoria} 
+                                disabled={cargandoAnuncio} 
                                 style={{background: 'rgba(0,0,0,0.5)'}}
                             >
-                                <option value="">🎲 Aleatoria (Mix)</option>
-                                {categorias.map((c: any) => (
-                                    <option key={c.id} value={c.id}>{c.es_premium ? '⭐ ' : ''}{c.titulo}</option>
-                                ))}
+                                {/* OPCIÓN MIX DINÁMICA */}
+                                <option value="">
+                                    {cargandoAnuncio ? '⏳ Cargando video...' : (mixDesbloqueado ? '✨ Aleatoria (Mix)' : '📺 Aleatoria (Mix) - Ver Video')}
+                                </option>
+                                
+                                {categorias.map((c: any) => {
+                                    // Verificamos si esta categoría VIP ya fue desbloqueada
+                                    const esVip = c.es_premium;
+                                    const estaDesbloqueada = vipsDesbloqueadas.has(c.id);
+                                    
+                                    let label = c.titulo;
+                                    if (esVip) {
+                                        label = estaDesbloqueada ? `⭐ ${c.titulo} (Desbloqueada)` : `🔒 ${c.titulo} (Ver Video)`;
+                                    }
+
+                                    return <option key={c.id} value={c.id}>{label}</option>;
+                                })}
                             </Form.Select>
                         )}
                     </Form.Group>
                 </Modal.Body>
                 <Modal.Footer className="border-0">
                     <button className="btn btn-link text-white-50 text-decoration-none" onClick={() => setShowModalImpostor(false)}>Cancelar</button>
-                    <button className="btn-neon-secondary px-4 py-2" onClick={iniciarImpostorConfirmado} disabled={loadingCats}>
+                    <button className="btn-neon-secondary px-4 py-2" onClick={iniciarImpostorConfirmado} disabled={loadingCats || cargandoAnuncio}>
                         {loadingCats ? "..." : "¡JUGAR!"}
                     </button>
                 </Modal.Footer>
