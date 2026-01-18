@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import { Container, Spinner, Row, Col } from 'react-bootstrap';
 import { api } from '../lib/api';
 import Swal from 'sweetalert2';
-import '../App.css'; // 👈 Estilos neón
+import '../App.css'; 
+import { AdService } from '../lib/AdMobUtils'; // 👈 USAMOS EL SERVICIO NUEVO
 
 interface Props {
   datos: { codigo: string; soyHost: boolean; nombre: string };
@@ -14,7 +15,7 @@ export const PiramideOnline = ({ datos, salir }: Props) => {
   const [loading, setLoading] = useState(false);
   const [ultimoIdMostrado, setUltimoIdMostrado] = useState(""); 
 
-  // --- SYNC (Igual que antes) ---
+  // --- SYNC ---
   useEffect(() => {
     const intervalo = setInterval(async () => {
       try {
@@ -25,7 +26,7 @@ export const PiramideOnline = ({ datos, salir }: Props) => {
     return () => clearInterval(intervalo);
   }, [datos.codigo]);
 
-  // --- EFECTO TRAGOS (Igual que antes) ---
+  // --- EFECTO TRAGOS ---
   useEffect(() => {
     const rev = sala?.datos_juego?.ultima_revelacion;
     if (rev && rev.id_accion !== ultimoIdMostrado) {
@@ -39,16 +40,27 @@ export const PiramideOnline = ({ datos, salir }: Props) => {
         Swal.fire({
           title: `¡Salió el ${rev.carta}!`,
           text: msj,
-          icon: 'info', // Podrías poner 'warning' para que sea más alarmante
+          icon: 'info', 
           timer: 4000,
           showConfirmButton: false,
           background: '#212529',
           color: '#fff',
-          backdrop: `rgba(255,85,0,0.2)` // Fondo naranja sutil
+          backdrop: `rgba(255,85,0,0.2)`
         });
       }
     }
   }, [sala]);
+
+  // --- SALIR CON ANUNCIO ---
+  const handleSalir = async () => {
+      await AdService.mostrarIntersticial();
+      salir();
+  };
+
+  const handleFinalizar = async () => {
+      await AdService.mostrarIntersticial();
+      await api.finalizarJuegoOnline(datos.codigo);
+  };
 
   if (!sala || !sala.datos_juego) return <Container className="min-vh-100 d-flex justify-content-center align-items-center bg-dark"><Spinner animation="border" variant="warning"/></Container>;
 
@@ -180,11 +192,11 @@ export const PiramideOnline = ({ datos, salir }: Props) => {
 
       <div className="mt-4 d-flex flex-column gap-2 w-100" style={{maxWidth: '300px'}}>
         {datos.soyHost && (
-          <button className="btn-neon-secondary py-2 fw-bold" onClick={() => api.finalizarJuegoOnline(datos.codigo)}>
+          <button className="btn-neon-secondary py-2 fw-bold" onClick={handleFinalizar}>
             🔄 ELEGIR OTRO JUEGO
           </button>
         )}
-        <button className="btn btn-link text-danger text-decoration-none small" onClick={salir}>Abandonar Sala</button>
+        <button className="btn btn-link text-danger text-decoration-none small" onClick={handleSalir}>Abandonar Sala</button>
       </div>
     </Container>
   );

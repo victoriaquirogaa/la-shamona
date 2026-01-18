@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
-import { Container, Button, Spinner, Alert } from 'react-bootstrap';
+import { Container, Spinner } from 'react-bootstrap';
 import { api } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
-import '../App.css'; // 👈 Estilos importantes
+import '../App.css'; 
+import { AdService } from '../lib/AdMobUtils'; // 👈 USAMOS EL NUEVO SERVICIO
 
 interface Props {
   datos: { codigo: string; soyHost: boolean; nombre: string }; 
@@ -61,10 +62,19 @@ export const ImpostorOnline = ({ datos, salir }: Props) => {
   const handleReiniciar = async () => {
       setReiniciando(true);
       try {
+        // 🎬 Opcional: El Host ve un anuncio rápido antes de reiniciar la partida
+        await AdService.mostrarIntersticial(); 
+        
         await api.iniciarJuegoOnline(datos.codigo, 'impostor');
         setMiVoto(null);
       } catch (e) { console.error(e); }
       setReiniciando(false);
+  };
+
+  // Función segura para salir con anuncio
+  const handleSalir = async () => {
+      await AdService.mostrarIntersticial();
+      salir();
   };
 
   // ================= VISTAS =================
@@ -225,7 +235,9 @@ export const ImpostorOnline = ({ datos, salir }: Props) => {
                             <button className="btn-neon-main bg-success border-success text-white py-3 fw-bold" onClick={handleReiniciar} disabled={reiniciando}>
                                 {reiniciando ? <Spinner size="sm"/> : "🔄 JUGAR OTRA VEZ"}
                             </button>
-                            <button className="btn btn-outline-light py-2 border-0" onClick={salir}>
+                            
+                            {/* 👇 ACÁ ESTÁ EL CAMBIO CLAVE: Salir con anuncio */}
+                            <button className="btn btn-outline-light py-2 border-0" onClick={handleSalir}>
                                 Salir al Menú
                             </button>
                         </>
@@ -240,6 +252,12 @@ export const ImpostorOnline = ({ datos, salir }: Props) => {
             {!soyHost && (
                 <div className="animate-pulse mt-4">
                     <p className="text-white-50 small">{termino ? "Esperando al Host..." : "El juego continúa..."}</p>
+                    {/* Los invitados también ven anuncio al salir si el juego terminó */}
+                    {termino && (
+                        <button className="btn btn-link text-white-50 mt-3" onClick={handleSalir}>
+                            Salir
+                        </button>
+                    )}
                 </div>
             )}
             

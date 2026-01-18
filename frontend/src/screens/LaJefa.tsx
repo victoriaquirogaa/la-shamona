@@ -1,18 +1,19 @@
-import { useState, ReactNode } from 'react';
+import { useState } from 'react';
 import { Container, Row, Col, Modal, ListGroup, Form } from 'react-bootstrap';
 import { api } from '../lib/api';
-import '../App.css'; // 👈 Importar los estilos
+import { AdService } from '../lib/AdMobUtils'; // 👈 USAMOS EL SERVICIO CENTRALIZADO
+import '../App.css';
 
 interface Props { volver: () => void; }
 
 interface MensajeEstado {
   titulo: string;
-  cuerpo: ReactNode;
+  cuerpo: React.ReactNode;
   tipo: 'info' | 'success' | 'warning' | 'danger';
 }
 
 export const LaJefa = ({ volver }: Props) => {
-  // --- ESTADOS (Igual que antes) ---
+  // --- ESTADOS ---
   const [jugadores, setJugadores] = useState<string[]>([]);
   const [inputNombre, setInputNombre] = useState("");
   const [sala, setSala] = useState<string | null>(null);
@@ -24,7 +25,11 @@ export const LaJefa = ({ volver }: Props) => {
   const [showResultado, setShowResultado] = useState(false);
   const [mensajeResultado, setMensajeResultado] = useState<MensajeEstado>({ titulo: "", cuerpo: "", tipo: "info" });
 
-  // --- LÓGICA (Idéntica, solo copiamos lo funcional) ---
+  // 📺 ESTADOS DE PUBLICIDAD
+  const [contadorTurnos, setContadorTurnos] = useState(0);
+  const FRECUENCIA_ADS = 5; // El anuncio sale cada 5 cartas
+
+  // --- LÓGICA ---
   const agregarJugador = () => {
     if (inputNombre.trim()) {
       setJugadores([...jugadores, inputNombre.trim()]);
@@ -43,11 +48,28 @@ export const LaJefa = ({ volver }: Props) => {
 
   const sacar = async () => {
     if (!sala) return;
+
+    // 1️⃣ RESOLVER DEDITO VENCIDO
     if (hayDeditoPendiente) {
         setHayDeditoPendiente(false); 
         setMensajeResultado({ titulo: "😴 DORMISTE", cuerpo: "Se te venció el Dedito por no usarlo.", tipo: "info" });
         setShowResultado(true);
     }
+
+    // 2️⃣ PUBLICIDAD (PEAJE)
+    const turnosJugados = contadorTurnos + 1; 
+    if (turnosJugados >= FRECUENCIA_ADS) {
+        console.log("🛑 ¡ALTO AHÍ! Momento de publicidad.");
+        
+        // Llamamos al servicio limpio
+        await AdService.mostrarIntersticial();
+        
+        setContadorTurnos(0);
+    } else {
+        setContadorTurnos(turnosJugados);
+    }
+
+    // 3️⃣ SACAR CARTA (API)
     try {
         const data = await api.sacarCartaLaJefa(sala);
         if (data.terminado) {
@@ -167,7 +189,12 @@ export const LaJefa = ({ volver }: Props) => {
             >
               COMENZAR PARTIDA
             </button>
-            <button className="btn btn-link text-white-50 text-decoration-none w-100 small" onClick={volver}>Volver al menú</button>
+            
+            {/* 🔽 SALIR CON ANUNCIO 🔽 */}
+            <button className="btn btn-link text-white-50 text-decoration-none w-100 small" 
+                onClick={async () => { await AdService.mostrarIntersticial(); volver(); }}>
+                Volver al menú
+            </button>
         </div>
       </Container>
     );
@@ -180,7 +207,7 @@ export const LaJefa = ({ volver }: Props) => {
       {/* HEADER */}
       <div className="w-100 d-flex justify-content-between align-items-center mb-4 px-3" style={{maxWidth: '500px'}}>
         <div className="titulo-neon fs-4 m-0">LA JEFA</div>
-        <button className="btn btn-sm btn-outline-light rounded-pill px-3" onClick={() => setSala(null)}>SALIR</button>
+        <button className="btn btn-sm btn-outline-light rounded-pill px-3" onClick={async () => { await AdService.mostrarIntersticial(); setSala(null); }}>SALIR</button>
       </div>
 
       {/* CARTA CENTRAL (Estilo naipe) */}

@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import { Container, Spinner } from 'react-bootstrap';
 import { api } from '../lib/api';
-import '../App.css'; // 👈 Importar estilos
+import '../App.css'; 
+import { AdService } from '../lib/AdMobUtils'; // 👈 USAMOS TU SERVICIO CENTRALIZADO
+import Swal from 'sweetalert2';
 
 interface Props {
   juego: 'yo-nunca' | 'votacion' | 'preguntas';
@@ -12,39 +14,96 @@ export const JuegoSimple = ({ juego, volver }: Props) => {
   const [modo, setModo] = useState<string | null>(null);
   const [frase, setFrase] = useState("Presioná Siguiente para arrancar");
   const [loading, setLoading] = useState(false);
+  
+  // 📺 ESTADOS DE PUBLICIDAD
+  const [contadorAds, setContadorAds] = useState(0);
+  const FRECUENCIA_ANUNCIOS = 5; // Interstitial cada 5 cartas
+  
+  const [mixDesbloqueado, setMixDesbloqueado] = useState(false);
+  const [cargandoVideo, setCargandoVideo] = useState(false);
 
-  // CONFIGURACIÓN VISUAL POR JUEGO
-  // Acá definimos título, color de neón y las opciones disponibles
+  // CONFIGURACIÓN DE JUEGOS (Agregué la opción 'mix' a todos)
   const config: any = {
     'yo-nunca': { 
         titulo: 'YO NUNCA', 
         icono: '🍺',
-        color: '#00d4ff', // Cyan
-        opciones: [{id: 'gratis', label: 'MODO CLÁSICO'}] 
+        color: '#00d4ff', 
+        opciones: [
+            {id: 'gratis', label: 'MODO CLÁSICO'}, 
+            {id: 'picante', label: '🔥 PICANTE'}, // Ejemplo
+            {id: 'mix', label: '✨ MIX (Video)'}   // 👈 NUEVO
+        ] 
     },
     'votacion': { 
         titulo: 'VOTACIÓN', 
         icono: '👉',
-        color: '#bd00ff', // Violeta
-        opciones: [{id: 'gratis', label: '¿QUIÉN ES?'}, {id: 'rico_pobre', label: 'RICO O POBRE'}] 
+        color: '#bd00ff', 
+        opciones: [
+            {id: 'gratis', label: '¿QUIÉN ES?'}, 
+            {id: 'rico_pobre', label: 'RICO O POBRE'},
+            {id: 'mix', label: '✨ MIX (Video)'}   // 👈 NUEVO
+        ] 
     },
     'preguntas': { 
         titulo: 'PREGUNTAS', 
         icono: '🤔',
-        color: '#ffd700', // Dorado
-        opciones: [{id: 'polemicas', label: 'POLÉMICAS'}, {id: 'profundas', label: 'PROFUNDAS'}] 
+        color: '#ffd700', 
+        opciones: [
+            {id: 'polemicas', label: 'POLÉMICAS'}, 
+            {id: 'profundas', label: 'PROFUNDAS'},
+            {id: 'mix', label: '✨ MIX (Video)'}   // 👈 NUEVO
+        ] 
     }
   }[juego];
 
+  // 1️⃣ LÓGICA DE SELECCIÓN DE MODO (Con Video)
+  const seleccionarModo = async (opcionId: string) => {
+      // Si eligen MIX y NO está desbloqueado -> VIDEO
+      if (opcionId === 'mix' && !mixDesbloqueado) {
+          setCargandoVideo(true);
+          await AdService.mirarVideoRecompensa(
+              () => { // GANA
+                  setMixDesbloqueado(true);
+                  setModo('mix');
+                  sacarCarta('mix');
+                  setCargandoVideo(false);
+                  Swal.fire({ title: '¡Mix Activado!', icon: 'success', timer: 1500, showConfirmButton: false, background: '#222', color: '#fff'});
+              },
+              () => { // FALLA (Regalo)
+                  setMixDesbloqueado(true);
+                  setModo('mix');
+                  sacarCarta('mix');
+                  setCargandoVideo(false);
+              }
+          );
+      } else {
+          // Si es normal o ya desbloqueado
+          setModo(opcionId);
+          sacarCarta(opcionId);
+      }
+  };
+
+  // 2️⃣ SACAR CARTA (Con Interstitial)
   const sacarCarta = async (categoria: string) => {
+    // A. Interstitial cada X turnos
+    const nuevoContador = contadorAds + 1;
+    if (nuevoContador >= FRECUENCIA_ANUNCIOS) {
+        await AdService.mostrarIntersticial();
+        setContadorAds(0);
+    } else {
+        setContadorAds(nuevoContador);
+    }
+
+    // B. Buscar datos
     setLoading(true);
     let data;
     try {
+        // Nota: Asumo que tu backend recibe 'mix' y sabe qué hacer (mezclar todo)
         if (juego === 'yo-nunca') data = await api.getFraseYoNunca(categoria);
         else if (juego === 'votacion') data = await api.getFraseVotacion(categoria);
         else if (juego === 'preguntas') data = await api.getPregunta(categoria);
         
-        setFrase(data?.texto || "Error de conexión con el servidor.");
+        setFrase(data?.texto || data?.pregunta || "Error de conexión.");
     } catch (e) {
         setFrase("Error al buscar frase. Intenta de nuevo.");
     }
@@ -62,25 +121,37 @@ export const JuegoSimple = ({ juego, volver }: Props) => {
                 background: `linear-gradient(90deg, ${config.color}, #ffffff)`,
                 WebkitBackgroundClip: 'text',
                 WebkitTextFillColor: 'transparent',
-                textShadow: `0 0 20px ${config.color}50` // 50 es transparencia hex
+                textShadow: `0 0 20px ${config.color}50`
             }}>
                 {config.titulo}
             </h1>
         </div>
 
         <div className="d-grid gap-3 w-100 animate-in slide-up" style={{maxWidth: '400px'}}>
-          {config.opciones.map((op: any) => (
-            <button 
-                key={op.id} 
-                className="btn-neon-main py-3 fw-bold fs-5"
-                style={{borderColor: config.color, color: config.color}} 
-                onClick={() => { setModo(op.id); sacarCarta(op.id); }}
-            >
-              {op.label}
-            </button>
-          ))}
+          {config.opciones.map((op: any) => {
+            // Estilo especial si es MIX
+            const esMix = op.id === 'mix';
+            const estaBloqueado = esMix && !mixDesbloqueado;
+
+            return (
+                <button 
+                    key={op.id} 
+                    className={`btn-neon-main py-3 fw-bold fs-5 ${esMix ? 'btn-mix' : ''}`} // Agregá clase btn-mix si querés animarlo
+                    style={{
+                        borderColor: esMix ? 'gold' : config.color, 
+                        color: esMix ? 'gold' : config.color,
+                        backgroundColor: estaBloqueado ? 'rgba(0,0,0,0.3)' : 'transparent'
+                    }} 
+                    onClick={() => seleccionarModo(op.id)}
+                    disabled={cargandoVideo}
+                >
+                  {cargandoVideo && esMix ? <Spinner size="sm"/> : 
+                   estaBloqueado ? "📺 VER VIDEO PARA MIX" : op.label}
+                </button>
+            );
+          })}
           
-          <button className="btn btn-link text-white-50 mt-3 text-decoration-none" onClick={volver}>
+          <button className="btn btn-link text-white-50 mt-3 text-decoration-none" onClick={() => { AdService.mostrarIntersticial(); volver(); }}>
              🡠 Volver al menú
           </button>
         </div>
@@ -88,30 +159,29 @@ export const JuegoSimple = ({ juego, volver }: Props) => {
     );
   }
 
-  // --- VISTA 2: TARJETA DE JUEGO ---
+  // --- VISTA 2: TARJETA DE JUEGO (Sin cambios mayores) ---
   return (
     <Container className="d-flex flex-column justify-content-center align-items-center min-vh-100 text-center p-4">
       
-      {/* HEADER SIMPLE */}
       <div className="w-100 d-flex justify-content-between align-items-center mb-4 px-2 absolute-top-md" style={{maxWidth: '600px'}}>
          <div className="d-flex align-items-center gap-2">
              <span className="fs-4">{config.icono}</span>
-             <span className="fw-bold text-uppercase" style={{color: config.color, letterSpacing: '2px'}}>{config.titulo}</span>
+             <span className="fw-bold text-uppercase" style={{color: config.color, letterSpacing: '2px'}}>
+                {config.titulo} {modo === 'mix' ? '(MIX)' : ''}
+             </span>
          </div>
          <button className="btn btn-sm btn-outline-light rounded-pill px-3" onClick={() => setModo(null)}>CAMBIAR</button>
       </div>
 
-      {/* TARJETA PRINCIPAL */}
       <div 
         className="card-shamona w-100 shadow-lg d-flex align-items-center justify-content-center p-4 p-md-5 mb-5 position-relative animate-in zoom-in" 
         style={{ 
             maxWidth: '500px', 
             minHeight: '350px', 
             border: `1px solid ${config.color}`,
-            background: 'rgba(0,0,0,0.4)' // Un poco más oscuro para leer bien el texto
+            background: 'rgba(0,0,0,0.4)'
         }}
       >
-        {/* Decoración de esquinas */}
         <div className="position-absolute top-0 start-0 m-2 border-top border-start" style={{width: '20px', height: '20px', borderColor: config.color}}/>
         <div className="position-absolute top-0 end-0 m-2 border-top border-end" style={{width: '20px', height: '20px', borderColor: config.color}}/>
         <div className="position-absolute bottom-0 start-0 m-2 border-bottom border-start" style={{width: '20px', height: '20px', borderColor: config.color}}/>
@@ -126,7 +196,6 @@ export const JuegoSimple = ({ juego, volver }: Props) => {
         )}
       </div>
 
-      {/* CONTROLES */}
       <div className="d-flex gap-3 w-100 justify-content-center" style={{ maxWidth: '500px' }}>
         <button 
             className="btn btn-outline-secondary px-4 fw-bold rounded-pill" 
@@ -139,11 +208,11 @@ export const JuegoSimple = ({ juego, volver }: Props) => {
             className="btn-neon-main flex-grow-1 fw-bold fs-5 py-3" 
             style={{
                 backgroundColor: config.color, 
-                color: '#000', // Texto negro para contraste sobre color brillante
+                color: '#000', 
                 borderColor: config.color,
                 boxShadow: `0 0 15px ${config.color}80`
             }}
-            onClick={() => sacarCarta(modo)}
+            onClick={() => sacarCarta(modo!)} // modo nunca es null acá
             disabled={loading}
         >
             {loading ? 'CARGANDO...' : 'SIGUIENTE ➔'}
