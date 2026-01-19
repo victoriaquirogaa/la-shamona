@@ -3,11 +3,12 @@ import { Container, Form, CloseButton, Spinner } from 'react-bootstrap';
 import { api } from '../lib/api'; 
 import { AdService } from '../lib/AdMobUtils'; 
 import Swal from 'sweetalert2';
+import { useSubscription } from '../context/SubscriptionContext'; 
 import '../App.css';
 
 interface Categoria {
     id: string;
-    titulo: string;
+    titulo?: string;
     es_premium: boolean;
 }
 
@@ -16,7 +17,9 @@ interface Props {
 }
 
 export const Impostor = ({ volver }: Props) => {
-    // FASES: setup -> ronda -> final
+    const { isPremium } = useSubscription(); 
+    
+    // FASES
     const [fase, setFase] = useState<'setup' | 'ronda' | 'final'>('setup');
   
     // DATOS SETUP
@@ -25,11 +28,12 @@ export const Impostor = ({ volver }: Props) => {
   
     // CATEGORÍAS & PUBLICIDAD
     const [categorias, setCategorias] = useState<Categoria[]>([]);
-    const [catSeleccionada, setCatSeleccionada] = useState<string | null>(null); // null = nada, "" = mix
+    const [catSeleccionada, setCatSeleccionada] = useState<string | null>(null); 
     const [cargandoCats, setCargandoCats] = useState(true);
     
-    // 🔐 ESTADOS DEL MIX
+    // 🔐 ESTADOS DE DESBLOQUEO
     const [mixDesbloqueado, setMixDesbloqueado] = useState(false);
+    const [vipsDesbloqueadas, setVipsDesbloqueadas] = useState<Set<string>>(new Set()); 
     const [cargandoAnuncio, setCargandoAnuncio] = useState(false);
 
     // ESTADO JUEGO
@@ -42,47 +46,84 @@ export const Impostor = ({ volver }: Props) => {
     // --- 1. CARGAR ---
     useEffect(() => {
         const cargar = async () => {
-            const data = await api.getCategoriasImpostor();
-            setCategorias(data);
-            setCargandoCats(false);
-            // Por defecto seleccionamos la primera categoría para que no quede vacío
-            if(data.length > 0) setCatSeleccionada(data[0].id);
+            try {
+                const data = await api.getCategoriasImpostor();
+                console.log("📂 DATOS RECIBIDOS:", data); 
+                setCategorias(data);
+                setCargandoCats(false);
+                
+                // Intentamos seleccionar la primera GRATIS por defecto
+                const primeraGratis = data.find((c: any) => c && c.id && !c.es_premium);
+                if (primeraGratis) setCatSeleccionada(primeraGratis.id);
+            } catch (e) {
+                console.error("Error cargando categorías:", e);
+                setCargandoCats(false);
+            }
         };
         cargar();
     }, []);
 
-    // --- 2. LÓGICA DEL MIX (Video Rewarded - ESTE SE QUEDA ✅) ---
+    // --- HELPER FORMATO ---
+    const formatearNombre = (id: string | undefined) => {
+        if (!id) return "SIN NOMBRE"; 
+        return id.replace(/_/g, ' ').toUpperCase();
+    };
+
+    // --- HELPER VIDEO ---
+    const lanzarVideo = async (onExito: () => void) => {
+        setCargandoAnuncio(true);
+        await AdService.mirarVideoRecompensa(
+            () => { // EXITO
+                onExito();
+                setCargandoAnuncio(false);
+                Swal.fire({ title: '¡Desbloqueado!', icon: 'success', timer: 1500, showConfirmButton: false, background: '#212529', color: '#fff' });
+            },
+            () => { // ERROR (Fallback)
+                onExito();
+                setCargandoAnuncio(false);
+            }
+        );
+    };
+
+    // --- 2. SELECCIONAR CATEGORÍA (MODIFICADO: LÓGICA ESTRICTA) ---
+    const handleSeleccionarCategoria = (c: Categoria) => {
+        if (!c || !c.id) return;
+
+        console.log("👉 Click en:", c.id, "| Premium:", c.es_premium, "| Usuario VIP:", isPremium);
+
+        // A. Si es GRATIS o SOY PREMIUM -> Pase directo
+        if (!c.es_premium || isPremium) {
+            setCatSeleccionada(c.id);
+            return;
+        }
+
+        // B. SI NO SOY PREMIUM Y ES VIP -> BLOQUEO TOTAL (Sin video)
+        // Antes acá llamábamos a lanzarVideo(), ahora solo mostramos alerta.
+        Swal.fire({
+            title: '🔒 Acceso VIP',
+            text: 'Esta categoría es exclusiva para miembros Premium.',
+            icon: 'warning',
+            background: '#212529',
+            color: '#fff',
+            confirmButtonText: 'Entendido',
+            confirmButtonColor: '#ffd700'
+        });
+        // No cambiamos la categoría seleccionada, se queda en la anterior
+    };
+
+    // --- 3. LÓGICA DEL MIX ---
     const manejarClickMix = async () => {
-        if (mixDesbloqueado) {
-            setCatSeleccionada(""); // "" Significa MIX en tu lógica
+        if (isPremium || mixDesbloqueado) {
+            setCatSeleccionada(""); 
         } else {
-            // PEDIR VIDEO RECOMPENSADO (Voluntario)
-            setCargandoAnuncio(true);
-            await AdService.mirarVideoRecompensa(
-                () => { // EXITO
-                    setMixDesbloqueado(true);
-                    setCatSeleccionada("");
-                    setCargandoAnuncio(false);
-                    Swal.fire({ 
-                        title: '¡Mix Desbloqueado!', 
-                        text: 'Ahora salen todas las categorías mezcladas.', 
-                        icon: 'success', 
-                        timer: 2000, 
-                        showConfirmButton: false,
-                        background: '#212529', color: '#fff'
-                    });
-                },
-                () => { // ERROR (Fallback)
-                    setMixDesbloqueado(true); // Se lo regalamos si falla
-                    setCatSeleccionada("");
-                    setCargandoAnuncio(false);
-                    Swal.fire({ title: 'Regalo', text: 'El video falló, pero te lo regalo igual.', icon: 'info', background: '#212529', color: '#fff'});
-                }
-            );
+            lanzarVideo(() => {
+                setMixDesbloqueado(true);
+                setCatSeleccionada("");
+            });
         }
     };
 
-    // --- 3. AGREGAR ---
+    // --- OTROS HANDLERS ---
     const agregar = () => {
         if(!nuevoNombre.trim()) return;
         if(nombres.includes(nuevoNombre.trim())) return;
@@ -90,18 +131,29 @@ export const Impostor = ({ volver }: Props) => {
         setNuevoNombre("");
     }
 
-    // --- 4. REPARTIR ---
+    // --- 4. REPARTIR (CON SALVOCONDUCTO) ---
+    // En src/screens/Impostor.tsx
+
     const repartir = async () => {
         if (nombres.length < 3) return Swal.fire({ title:'Faltan jugadores', text: 'Mínimo 3 personas.', icon: 'warning', background: '#212529', color: '#fff'});
         
-        // Validación de categoría
-        if (catSeleccionada === null) return Swal.fire({ title:'Elegí Categoría', text: 'Seleccioná una temática antes de empezar.', icon: 'warning', background: '#212529', color: '#fff'});
+        // Validación estricta
+        if (catSeleccionada === null || catSeleccionada === undefined) return Swal.fire({ title:'Elegí Categoría', text: 'Seleccioná una temática antes de empezar.', icon: 'warning', background: '#212529', color: '#fff'});
 
         setLoading(true);
         try {
-            // Si es "" mandamos undefined para que la API haga Mix
             const catId = catSeleccionada === "" ? undefined : catSeleccionada;
-            const data = await api.crearPartidaImpostorLocal(nombres, catId);
+            
+            // 1. Permiso para ENTRAR (Video visto o Premium)
+            const tengoPermiso = isPremium || 
+                                 (catId === undefined && mixDesbloqueado) || 
+                                 (catId && vipsDesbloqueadas.has(catId));
+
+            console.log("🚀 Enviando partida:", { catId, tengoPermiso, isPremium });
+
+            // 2. Llamada a la API con los 4 argumentos
+            // (nombres, categoria, permiso, esPremium)
+            const data = await api.crearPartidaImpostorLocal(nombres, catId, tengoPermiso || false, isPremium);
             
             setDistribucion(data.distribucion);
             setCategoriaTitulo(data.categoria);
@@ -110,27 +162,22 @@ export const Impostor = ({ volver }: Props) => {
             setFase('ronda');
         } catch (e) {
             console.error(e);
-            Swal.fire({title: 'Error', text: 'Probá de nuevo.', icon: 'error', background: '#212529', color: '#fff'});
+            Swal.fire({title: 'Error', text: 'No se pudo crear la partida.', icon: 'error', background: '#212529', color: '#fff'});
         }
         setLoading(false);
     };
 
-    // --- 5. RONDA ---
     const siguiente = () => {
         setViendo(false);
         if (turno + 1 < distribucion.length) setTurno(turno + 1);
         else setFase('final');
     }
 
-    // 🗑️ BORRÉ LA FUNCIÓN salirConAnuncio() PARA QUE SALGA DIRECTO
+    // ================= VISTAS (TU CÓDIGO ORIGINAL) =================
 
-    // ================= VISTAS =================
-
-    // --- VISTA 1: SETUP ---
     if (fase === 'setup') {
         return (
           <Container className="min-vh-100 py-4 d-flex flex-column align-items-center text-center p-3">
-            {/* HEADER */}
             <div className="w-100 d-flex justify-content-between align-items-center mb-4 px-2" style={{maxWidth: '500px'}}>
                 <h2 className="titulo-neon m-0 fs-3" style={{color: '#bd00ff', textShadow: '0 0 10px #bd00ff'}}>IMPOSTOR 🕵️‍♂️</h2>
                 <button className="btn btn-sm btn-outline-light rounded-pill px-3" onClick={volver}>SALIR</button>
@@ -138,7 +185,6 @@ export const Impostor = ({ volver }: Props) => {
             
             <div className="card-shamona p-4 mb-3 w-100 animate-in zoom-in" style={{maxWidth: '500px', border: '1px solid #bd00ff'}}>
                 
-                {/* 🔽 BOTONES DE CATEGORÍA 🔽 */}
                 <div className="mb-4">
                     <label className="text-white small fw-bold mb-2 text-uppercase d-block text-start">Elige Temática:</label>
                     
@@ -147,33 +193,50 @@ export const Impostor = ({ volver }: Props) => {
                     ) : (
                         <div className="d-flex flex-wrap gap-2 justify-content-center">
                             
-                            {/* 1. BOTONES CATEGORIAS NORMALES */}
-                            {categorias.map(c => (
-                                <button 
-                                    key={c.id}
-                                    onClick={() => setCatSeleccionada(c.id)}
-                                    className={`btn btn-sm rounded-pill fw-bold ${catSeleccionada === c.id ? 'btn-light text-dark shadow' : 'btn-dark text-white border-secondary'}`}
-                                    style={{ transition: 'all 0.2s', transform: catSeleccionada === c.id ? 'scale(1.1)' : 'scale(1)'}}
-                                >
-                                    {c.titulo}
-                                </button>
-                            ))}
+                            {/* 1. BOTONES CATEGORIAS */}
+                            {categorias.map((c, i) => {
+                                if (!c.id) return null;
 
-                            {/* 2. BOTÓN MIX ESPECIAL (REWARDED) */}
+                                const esVip = c.es_premium;
+                                // Si es VIP, NO soy premium -> Bloqueada (vipsDesbloqueadas ya no se usa para esto, pero lo dejamos por compatibilidad)
+                                const estaBloqueada = esVip && !isPremium;
+                                const seleccionada = catSeleccionada === c.id;
+
+                                return (
+                                    <button 
+                                        key={c.id || i}
+                                        onClick={() => handleSeleccionarCategoria(c)}
+                                        disabled={cargandoAnuncio}
+                                        className={`btn btn-sm rounded-pill fw-bold d-flex align-items-center gap-1 
+                                            ${seleccionada ? 'btn-light text-dark shadow' : 'btn-dark text-white border-secondary'}
+                                            ${estaBloqueada ? 'opacity-75' : ''}
+                                        `}
+                                        style={{ 
+                                            transition: 'all 0.2s', 
+                                            transform: seleccionada ? 'scale(1.1)' : 'scale(1)',
+                                            border: estaBloqueada ? '1px dashed #ffd700' : undefined
+                                        }}
+                                    >
+                                        {estaBloqueada && '🔒'} {esVip && !estaBloqueada && '⭐'} {formatearNombre(c.id)}
+                                    </button>
+                                );
+                            })}
+
+                            {/* 2. BOTÓN MIX */}
                             <button 
                                 onClick={manejarClickMix}
                                 disabled={cargandoAnuncio}
                                 className={`btn btn-sm rounded-pill fw-bold d-flex align-items-center gap-2 ${catSeleccionada === "" ? 'bg-warning text-dark border-0 shadow-lg animate-pulse' : 'btn-outline-warning text-warning'}`}
                                 style={{ transition: 'all 0.2s', transform: catSeleccionada === "" ? 'scale(1.1)' : 'scale(1)'}}
                             >
-                                {cargandoAnuncio ? <Spinner size="sm"/> : (mixDesbloqueado ? '✨ MIX TOTAL' : '📺 VER VIDEO = MIX')}
+                                {cargandoAnuncio ? <Spinner size="sm"/> : 
+                                 (isPremium || mixDesbloqueado ? '✨ MIX TOTAL' : '📺 MIX (Video)')}
                             </button>
 
                         </div>
                     )}
                 </div>
 
-                {/* INPUT NOMBRES */}
                 <div className="d-flex gap-2 mb-4">
                     <Form.Control 
                         value={nuevoNombre} 
@@ -186,7 +249,6 @@ export const Impostor = ({ volver }: Props) => {
                     <button className="btn-neon-main py-1 px-3" style={{width: 'auto', borderColor: '#bd00ff', color: '#bd00ff'}} onClick={agregar}>+</button>
                 </div>
 
-                {/* LISTA JUGADORES */}
                 <div className="d-flex flex-wrap gap-2 justify-content-center mb-2" style={{minHeight: '100px'}}>
                       {nombres.map((n, i) => (
                         <div key={i} className="px-3 py-1 rounded-pill bg-dark text-white small fw-bold d-flex align-items-center gap-2 animate-in fade-in" 
@@ -211,21 +273,17 @@ export const Impostor = ({ volver }: Props) => {
         );
     }
 
-    // --- VISTA 2: PASAMANOS (Sin cambios) ---
     if (fase === 'ronda') {
         const jugador = distribucion[turno];
         return (
           <Container className="min-vh-100 py-4 d-flex flex-column align-items-center justify-content-center text-center p-3">
-            
             <div className="badge rounded-pill bg-dark border border-secondary mb-5 animate-in fade-in px-4 py-2">
                 JUGADOR {turno + 1} / {distribucion.length}
             </div>
-
             {!viendo ? (
                 <div className="animate-in zoom-in w-100" style={{maxWidth: '500px'}}>
                     <h3 className="text-white-50 mb-4 fw-light">Pase el dispositivo a:</h3>
                     <h1 className="titulo-neon mb-5" style={{fontSize: '3.5rem', color: '#00d4ff', textShadow: '0 0 20px #00d4ff'}}>{jugador.nombre}</h1>
-                    
                     <button 
                         className="btn-neon-main py-3 px-5 fw-bold fs-4 rounded-pill shadow-lg"
                         style={{borderColor: '#00d4ff', color: '#00d4ff'}} 
@@ -237,12 +295,10 @@ export const Impostor = ({ volver }: Props) => {
             ) : (
                 <div className="card-shamona w-100 animate-in flip-in-y p-5 shadow-lg position-relative" 
                      style={{
-                         maxWidth: '400px', 
-                         minHeight: '400px',
+                         maxWidth: '400px', minHeight: '400px',
                          border: `2px solid ${jugador.rol === 'IMPOSTOR' ? '#ff0055' : '#00ff9d'}`,
                          background: jugador.rol === 'IMPOSTOR' ? 'rgba(255, 0, 85, 0.1)' : 'rgba(0, 255, 157, 0.1)'
                      }}>
-                    
                     <div className="d-flex flex-column justify-content-center align-items-center h-100">
                         {jugador.rol === 'IMPOSTOR' ? (
                             <>
@@ -262,7 +318,6 @@ export const Impostor = ({ volver }: Props) => {
                             </>
                         )}
                     </div>
-
                     <div className="position-absolute bottom-0 start-0 w-100 p-3">
                          <button className="btn-neon-secondary w-100 py-3 fw-bold bg-dark text-white border-0" onClick={siguiente}>
                             OK, ESCONDÉ ESTO 🙈
@@ -274,7 +329,7 @@ export const Impostor = ({ volver }: Props) => {
         );
     }
 
-    // --- VISTA 3: FINAL ---
+    // FASE FINAL
     return (
         <Container className="min-vh-100 py-4 d-flex flex-column align-items-center justify-content-center text-center p-3">
             <div style={{fontSize: '4rem'}} className="mb-2 animate-bounce">🔥</div>
@@ -293,12 +348,9 @@ export const Impostor = ({ volver }: Props) => {
                 >
                     {loading ? <Spinner size="sm"/> : "🔄 JUGAR DE NUEVO (MISMO GRUPO)"}
                 </button>
-                
                 <button className="btn btn-outline-light py-2 border-0 opacity-75" onClick={() => setFase('setup')}>
                     ⚙️ Cambiar nombres o categoría
                 </button>
-                
-                {/* ❌ BOTÓN SALIR SIN ANUNCIO ❌ */}
                 <button className="btn btn-link text-danger text-decoration-none mt-3" onClick={volver}>
                     ❌ Salir al Menú
                 </button>

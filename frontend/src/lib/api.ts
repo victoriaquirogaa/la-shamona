@@ -26,10 +26,15 @@ export const api = {
     } catch (e) { return null; }
   },
 
-  // Juegos Simples (Ahora usan safeFetch)
-  getFraseYoNunca: async (cat: string) => (await safeFetch(`/juegos/yo-nunca/${cat}`)).json(),
-  getFraseVotacion: async (cat: string) => (await safeFetch(`/juegos/votacion/rapido/${cat}`)).json(),
-  getPregunta: async (cat: string) => (await safeFetch(`/juegos/preguntas/${cat}`)).json(),
+  // Juegos Simples (Ahora aceptan esPremium para el filtro VIP)
+  getFraseYoNunca: async (cat: string, esPremium: boolean = false) => 
+      (await safeFetch(`/juegos/yo-nunca/${cat}?es_premium=${esPremium}`)).json(),
+
+  getFraseVotacion: async (cat: string, esPremium: boolean = false) => 
+      (await safeFetch(`/juegos/votacion/rapido/${cat}?es_premium=${esPremium}`)).json(),
+
+  getPregunta: async (cat: string, esPremium: boolean = false) => 
+      (await safeFetch(`/juegos/preguntas/${cat}?es_premium=${esPremium}`)).json(),
 
   // La Jefa
   crearPartidaLaJefa: async (jugadores: string[]) => (await safeFetch(`/juegos/la-puta/crear`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ jugadores }) })).json(),
@@ -46,11 +51,11 @@ export const api = {
   unirseSalaOnline: async (codigo: string, nombreJugador: string) => (await safeFetch(`/juegos/online/unirse`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ codigo, nombre_jugador: nombreJugador }) })).json(),
   getSalaOnline: async (codigo: string) => (await safeFetch(`/juegos/online/estado/${codigo}`)).json(),
   
-  iniciarJuegoOnline: async (codigo: string, juego: string, categoriaId?: string) => {
+  iniciarJuegoOnline: async (codigo: string, juego: string, categoriaId?: string, esPremium: boolean = false) => {
         await safeFetch(`/juegos/online/iniciar`, { 
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ codigo, juego, categoria_id: categoriaId })
+          body: JSON.stringify({ codigo, juego, categoria_id: categoriaId, es_usuario_premium: esPremium })
       });
     },
 
@@ -82,12 +87,19 @@ export const api = {
     } catch (e) { return []; }
   },
 
-  crearPartidaImpostorLocal: async (jugadores: string[], categoriaId?: string) => {
+  // 👇👇👇 FUNCIÓN ACTUALIZADA CON PERMISO VIP 👇👇👇
+  crearPartidaImpostorLocal: async (jugadores: string[], categoriaId?: string, tienePermiso: boolean = false, esPremium: boolean = false) => {
     const deviceId = localStorage.getItem('device_id') || 'browser-client'; 
     const response = await safeFetch(`/impostor/crear-local`, { 
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ jugadores, categoria_id: categoriaId || null, device_id: deviceId })
+      body: JSON.stringify({ 
+          jugadores, 
+          categoria_id: categoriaId || null, 
+          device_id: deviceId,
+          tiene_permiso: tienePermiso,   // Salvoconducto (Video)
+          es_usuario_premium: esPremium // 👈 NUEVO: Para filtrar el Mix
+      })
     });
     return await response.json();
   },

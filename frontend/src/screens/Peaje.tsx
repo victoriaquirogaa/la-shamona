@@ -2,11 +2,14 @@ import { useState, useEffect } from 'react';
 import { Container } from 'react-bootstrap';
 import { api } from '../lib/api';
 import '../App.css'; 
-import { AdService } from '../lib/AdMobUtils'; // 👈 USAMOS EL SERVICIO NUEVO
+import { AdService } from '../lib/AdMobUtils';
+import { useSubscription } from '../context/SubscriptionContext'; // 👈 1. IMPORTAR
 
 interface Props { volver: () => void; }
 
 export const Peaje = ({ volver }: Props) => {
+  const { isPremium } = useSubscription(); // 👈 2. OBTENER STATUS
+  
   const [sala, setSala] = useState<string | null>(null);
   const [carta, setCarta] = useState<number>(1);
   const [pos, setPos] = useState(0);
@@ -30,8 +33,12 @@ export const Peaje = ({ volver }: Props) => {
         
         // 🚨 DETECTAR SI PERDIÓ (Volvió al principio)
         if (d.nueva_posicion === 0 && pos > 0) {
-            console.log("💥 ¡Choque! Volviste al principio -> Publicidad");
-            await AdService.mostrarIntersticial();
+            console.log("💥 ¡Choque! Volviste al principio");
+            
+            // 👈 3A. PUBLICIDAD AL CHOCAR (SOLO NO PREMIUM)
+            if (!isPremium) {
+                await AdService.mostrarIntersticial();
+            }
         }
 
         setCarta(d.carta_nueva);
@@ -44,13 +51,19 @@ export const Peaje = ({ volver }: Props) => {
 
   // --- SALIR CON ANUNCIO ---
   const handleSalir = async () => {
-      await AdService.mostrarIntersticial();
+      // 👈 3B. PUBLICIDAD AL SALIR (SOLO NO PREMIUM)
+      if (!isPremium) {
+          await AdService.mostrarIntersticial();
+      }
       volver();
   };
 
   // --- REINICIAR ---
   const handleReiniciar = async () => {
-      await AdService.mostrarIntersticial();
+      // 👈 3C. PUBLICIDAD AL REINICIAR (SOLO NO PREMIUM)
+      if (!isPremium) {
+          await AdService.mostrarIntersticial();
+      }
       window.location.reload();
   };
 

@@ -3,7 +3,8 @@ import { Container, Modal, Row, Col, Spinner, Badge } from 'react-bootstrap';
 import { api } from '../lib/api';
 import Swal from 'sweetalert2';
 import '../App.css'; 
-import { AdService } from '../lib/AdMobUtils'; // 👈 USAMOS EL SERVICIO NUEVO
+import { AdService } from '../lib/AdMobUtils';
+import { useSubscription } from '../context/SubscriptionContext'; // 👈 1. IMPORTAR
 
 interface Props {
   datos: { codigo: string; nombre: string; soyHost: boolean };
@@ -11,6 +12,7 @@ interface Props {
 }
 
 export const LaJefaOnline = ({ datos, salir }: Props) => {
+  const { isPremium } = useSubscription(); // 👈 2. OBTENER STATUS
   const [sala, setSala] = useState<any>(null);
   
   // MODALES
@@ -50,9 +52,12 @@ export const LaJefaOnline = ({ datos, salir }: Props) => {
     return () => clearInterval(intervalo);
   }, [datos.codigo, datos.nombre]);
 
-  // 🚪 FUNCIÓN SEGURA PARA SALIR (Con Anuncio)
+  // 🚪 FUNCIÓN SEGURA PARA SALIR (PROTEGIDA VIP)
   const handleSalir = async () => {
-      await AdService.mostrarIntersticial();
+      // 👈 3. SOLO MOSTRAMOS ANUNCIO SI NO ES PREMIUM
+      if (!isPremium) {
+          await AdService.mostrarIntersticial();
+      }
       salir();
   };
 
@@ -166,7 +171,7 @@ export const LaJefaOnline = ({ datos, salir }: Props) => {
           {/* FASE 1: DORSO */}
           {fase === 'ESPERANDO' && (
               <div className="mb-4 d-flex align-items-center justify-content-center text-white-50 animate-in zoom-in" 
-                 style={{ width: '260px', height: '380px', borderRadius: '15px', border: '2px dashed rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.05)' }}>
+                  style={{ width: '260px', height: '380px', borderRadius: '15px', border: '2px dashed rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.05)' }}>
                   {esMiTurno ? (
                       <button className="btn-neon-main py-3 px-4 fw-bold shadow-lg" style={{color: 'white', borderColor: 'var(--neon-pink)', background: 'var(--neon-pink)'}} onClick={handleSacar}>
                           🃏 SACAR CARTA

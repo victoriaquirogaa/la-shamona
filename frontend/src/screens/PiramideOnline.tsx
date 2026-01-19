@@ -3,7 +3,8 @@ import { Container, Spinner, Row, Col } from 'react-bootstrap';
 import { api } from '../lib/api';
 import Swal from 'sweetalert2';
 import '../App.css'; 
-import { AdService } from '../lib/AdMobUtils'; // 👈 USAMOS EL SERVICIO NUEVO
+import { AdService } from '../lib/AdMobUtils';
+import { useSubscription } from '../context/SubscriptionContext'; // 👈 1. IMPORTAR
 
 interface Props {
   datos: { codigo: string; soyHost: boolean; nombre: string };
@@ -11,6 +12,8 @@ interface Props {
 }
 
 export const PiramideOnline = ({ datos, salir }: Props) => {
+  const { isPremium } = useSubscription(); // 👈 2. OBTENER STATUS
+  
   const [sala, setSala] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [ultimoIdMostrado, setUltimoIdMostrado] = useState(""); 
@@ -51,14 +54,20 @@ export const PiramideOnline = ({ datos, salir }: Props) => {
     }
   }, [sala]);
 
-  // --- SALIR CON ANUNCIO ---
+  // --- SALIR CON ANUNCIO (PROTEGIDO) ---
   const handleSalir = async () => {
-      await AdService.mostrarIntersticial();
+      // 👈 3. SOLO SI NO ES PREMIUM
+      if (!isPremium) {
+          await AdService.mostrarIntersticial();
+      }
       salir();
   };
 
   const handleFinalizar = async () => {
-      await AdService.mostrarIntersticial();
+      // 👈 4. SOLO SI NO ES PREMIUM
+      if (!isPremium) {
+          await AdService.mostrarIntersticial();
+      }
       await api.finalizarJuegoOnline(datos.codigo);
   };
 

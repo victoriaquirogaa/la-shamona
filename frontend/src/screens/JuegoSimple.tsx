@@ -4,6 +4,7 @@ import { api } from '../lib/api';
 import '../App.css'; 
 import { AdService } from '../lib/AdMobUtils'; 
 import Swal from 'sweetalert2';
+import { useSubscription } from '../context/SubscriptionContext'; 
 
 interface Props {
   juego: 'yo-nunca' | 'votacion' | 'preguntas';
@@ -11,14 +12,13 @@ interface Props {
 }
 
 export const JuegoSimple = ({ juego, volver }: Props) => {
+  const { isPremium } = useSubscription(); 
   const [modo, setModo] = useState<string | null>(null);
   const [frase, setFrase] = useState("Presioná Siguiente para arrancar");
   const [loading, setLoading] = useState(false);
   
   // 📺 ESTADOS DE PUBLICIDAD
   const [contadorAds, setContadorAds] = useState(0);
-  
-  // 👇 CAMBIO 1: Aumentamos a 8 para que moleste menos
   const FRECUENCIA_ANUNCIOS = 8; 
   
   const [mixDesbloqueado, setMixDesbloqueado] = useState(false);
@@ -28,40 +28,61 @@ export const JuegoSimple = ({ juego, volver }: Props) => {
   const config: any = {
     'yo-nunca': { 
         titulo: 'YO NUNCA', 
-        icono: '🍺',
+        icono: '🍺', 
         color: '#00d4ff', 
         opciones: [
             {id: 'gratis', label: 'MODO CLÁSICO'}, 
-            {id: 'picante', label: '🔥 PICANTE'}, 
-            {id: 'mix', label: '✨ MIX (Video)'} 
+            // Yo Nunca: Picante y Mix son SOLO VIP
+            {id: 'hot', label: '🔥 PICANTE', vipOnly: true}, 
+            {id: 'mix', label: '✨ MIX (Solo VIP)', vipOnly: true} 
         ] 
     },
     'votacion': { 
         titulo: 'VOTACIÓN', 
-        icono: '👉',
+        icono: '👉', 
         color: '#bd00ff', 
         opciones: [
             {id: 'gratis', label: '¿QUIÉN ES?'}, 
-            {id: 'rico_pobre', label: 'RICO O POBRE'},
-            {id: 'mix', label: '✨ MIX (Video)'} 
+            {id: 'rico_pobre', label: 'RICO O POBRE'}
+            // Sin Mix acá
         ] 
     },
     'preguntas': { 
         titulo: 'PREGUNTAS', 
-        icono: '🤔',
+        icono: '🤔', 
         color: '#ffd700', 
         opciones: [
             {id: 'polemicas', label: 'POLÉMICAS'}, 
-            {id: 'profundas', label: 'PROFUNDAS'},
+            {id: 'profundas', label: 'PROFUNDAS'}, 
+            // Preguntas: Picantes es VIP, Mix es con Video
+            {id: 'picantes', label: '😈 PICANTES', vipOnly: true}, 
             {id: 'mix', label: '✨ MIX (Video)'} 
         ] 
     }
   }[juego];
 
-  // 1️⃣ LÓGICA DE SELECCIÓN DE MODO (Con Video Recompensado para el Mix)
-  const seleccionarModo = async (opcionId: string) => {
-      // Si eligen MIX y NO está desbloqueado -> VIDEO
-      if (opcionId === 'mix' && !mixDesbloqueado) {
+  // 1️⃣ LÓGICA DE SELECCIÓN DE MODO
+  const seleccionarModo = async (opcion: any) => {
+      const opcionId = opcion.id;
+
+      // A. CASO VIP ONLY (Yo Nunca Hot/Mix, Preguntas Picantes)
+      // Si dice vipOnly y NO sos premium -> BLOQUEO TOTAL (Sin video)
+      if (opcion.vipOnly && !isPremium) {
+          Swal.fire({
+              title: '👑 Acceso VIP',
+              text: 'Esta categoría es exclusiva para miembros Premium.',
+              icon: 'warning',
+              background: '#212529',
+              color: '#fff',
+              confirmButtonText: 'Entendido',
+              confirmButtonColor: '#ffd700'
+          });
+          return;
+      }
+
+      // B. CASO MIX NORMAL (Solo en Preguntas ahora)
+      // Si es Mix, NO es vipOnly, no pagó y no desbloqueó -> VIDEO
+      if (opcionId === 'mix' && !mixDesbloqueado && !isPremium) {
           setCargandoVideo(true);
           await AdService.mirarVideoRecompensa(
               () => { // GANA
@@ -71,7 +92,7 @@ export const JuegoSimple = ({ juego, volver }: Props) => {
                   setCargandoVideo(false);
                   Swal.fire({ title: '¡Mix Activado!', icon: 'success', timer: 1500, showConfirmButton: false, background: '#222', color: '#fff'});
               },
-              () => { // FALLA (Regalo)
+              () => { // FALLA
                   setMixDesbloqueado(true);
                   setModo('mix');
                   sacarCarta('mix');
@@ -79,24 +100,25 @@ export const JuegoSimple = ({ juego, volver }: Props) => {
               }
           );
       } else {
-          // Si es normal o ya desbloqueado
+          // C. ACCESO DIRECTO
           setModo(opcionId);
           sacarCarta(opcionId);
       }
   };
 
-  // 2️⃣ SACAR CARTA (Con Interstitial cada 8 turnos)
+  // 2️⃣ SACAR CARTA
   const sacarCarta = async (categoria: string) => {
-    // A. Interstitial cada X turnos
-    const nuevoContador = contadorAds + 1;
-    if (nuevoContador >= FRECUENCIA_ANUNCIOS) {
-        await AdService.mostrarIntersticial();
-        setContadorAds(0);
-    } else {
-        setContadorAds(nuevoContador);
+    // Solo mostramos anuncios si NO es Premium
+    if (!isPremium) {
+        const nuevoContador = contadorAds + 1;
+        if (nuevoContador >= FRECUENCIA_ANUNCIOS) {
+            await AdService.mostrarIntersticial();
+            setContadorAds(0);
+        } else {
+            setContadorAds(nuevoContador);
+        }
     }
 
-    // B. Buscar datos
     setLoading(true);
     let data;
     try {
@@ -131,7 +153,11 @@ export const JuegoSimple = ({ juego, volver }: Props) => {
         <div className="d-grid gap-3 w-100 animate-in slide-up" style={{maxWidth: '400px'}}>
           {config.opciones.map((op: any) => {
             const esMix = op.id === 'mix';
-            const estaBloqueado = esMix && !mixDesbloqueado;
+            const esVipOnly = op.vipOnly; 
+
+            // Estados de bloqueo visual
+            const mixBloqueado = esMix && !mixDesbloqueado && !isPremium && !esVipOnly; // Solo si NO es vipOnly (el de preguntas)
+            const vipBloqueado = esVipOnly && !isPremium;
 
             return (
                 <button 
@@ -140,18 +166,22 @@ export const JuegoSimple = ({ juego, volver }: Props) => {
                     style={{
                         borderColor: esMix ? 'gold' : config.color, 
                         color: esMix ? 'gold' : config.color,
-                        backgroundColor: estaBloqueado ? 'rgba(0,0,0,0.3)' : 'transparent'
+                        backgroundColor: (mixBloqueado || vipBloqueado) ? 'rgba(0,0,0,0.3)' : 'transparent',
+                        opacity: vipBloqueado ? 0.7 : 1
                     }} 
-                    onClick={() => seleccionarModo(op.id)}
+                    onClick={() => seleccionarModo(op)}
                     disabled={cargandoVideo}
                 >
                   {cargandoVideo && esMix ? <Spinner size="sm"/> : 
-                   estaBloqueado ? "📺 VER VIDEO PARA MIX" : op.label}
+                   // LÓGICA DE TEXTO DEL BOTÓN
+                   vipBloqueado ? `🔒 ${op.label}` :
+                   mixBloqueado ? "📺 VER VIDEO PARA MIX" : 
+                   (esMix && isPremium ? "✨ MIX (VIP)" : op.label)
+                  }
                 </button>
             );
           })}
           
-          {/* 👇 CAMBIO 2: Eliminado AdService.mostrarIntersticial() de acá */}
           <button className="btn btn-link text-white-50 mt-3 text-decoration-none" onClick={volver}>
               🡠 Volver al menú
           </button>
@@ -183,6 +213,7 @@ export const JuegoSimple = ({ juego, volver }: Props) => {
             background: 'rgba(0,0,0,0.4)'
         }}
       >
+        {/* Esquineros decorativos */}
         <div className="position-absolute top-0 start-0 m-2 border-top border-start" style={{width: '20px', height: '20px', borderColor: config.color}}/>
         <div className="position-absolute top-0 end-0 m-2 border-top border-end" style={{width: '20px', height: '20px', borderColor: config.color}}/>
         <div className="position-absolute bottom-0 start-0 m-2 border-bottom border-start" style={{width: '20px', height: '20px', borderColor: config.color}}/>

@@ -3,7 +3,8 @@ import { Container, Row, Col, Form, Spinner, Modal } from 'react-bootstrap';
 import Swal from 'sweetalert2';
 import { api } from '../lib/api';
 import '../App.css'; 
-import { AdService } from '../lib/AdMobUtils'; // 👈 Asegurate que este archivo esté guardado
+import { AdService } from '../lib/AdMobUtils';
+import { useSubscription } from '../context/SubscriptionContext'; // 👈 1. IMPORTAR
 
 // --- IMPORTS DE LOS JUEGOS ---
 import { ImpostorOnline } from './ImpostorOnline';
@@ -17,6 +18,7 @@ interface Props {
 }
 
 export const MenuOnline = ({ volver, onJuegoIniciado }: Props) => {
+  const { isPremium } = useSubscription(); // 👈 2. OBTENER STATUS
   const [nombre, setNombre] = useState("");
   const [codigoSala, setCodigoSala] = useState("");
   const [loading, setLoading] = useState(false);
@@ -28,12 +30,11 @@ export const MenuOnline = ({ volver, onJuegoIniciado }: Props) => {
   // ESTADOS PARA EL MODAL DE IMPOSTOR
   const [showModalImpostor, setShowModalImpostor] = useState(false);
   const [categorias, setCategorias] = useState<any[]>([]);
-  const [catSeleccionada, setCatSeleccionada] = useState(""); // "" es Mix por defecto visualmente, pero lógica abajo
+  const [catSeleccionada, setCatSeleccionada] = useState(""); 
   const [loadingCats, setLoadingCats] = useState(false);
 
   // 🔐 ESTADOS DE DESBLOQUEO (ADS)
   const [mixDesbloqueado, setMixDesbloqueado] = useState(false);
-  const [vipsDesbloqueadas, setVipsDesbloqueadas] = useState<Set<string>>(new Set()); // Para recordar las VIPs abiertas
   const [cargandoAnuncio, setCargandoAnuncio] = useState(false);
 
   // --- HELPERS ---
@@ -135,7 +136,7 @@ export const MenuOnline = ({ volver, onJuegoIniciado }: Props) => {
           () => { // ÉXITO
               onExito();
               setCargandoAnuncio(false);
-              mostrarAlerta('success', '¡Desbloqueado!', 'Gracias por apoyar la app.');
+              mostrarAlerta('success', '¡Desbloqueado!', 'Mix Activado.');
           },
           () => { // FALLO (Igual damos premio)
               onExito();
@@ -144,15 +145,17 @@ export const MenuOnline = ({ volver, onJuegoIniciado }: Props) => {
       );
   };
 
-  // 👇 LÓGICA DEL SELECTOR (MIX + VIP) 👇
+  // 👇 LÓGICA DEL SELECTOR (ESTRICTA VIP) 👇
   const handleSeleccionCategoria = (e: any) => {
       const idSeleccionado = e.target.value;
 
       // --- CASO 1: MIX ---
       if (idSeleccionado === "") {
-          if (mixDesbloqueado) {
+          // Si es Premium O ya desbloqueó el Mix -> Pasa
+          if (isPremium || mixDesbloqueado) {
               setCatSeleccionada("");
           } else {
+              // Si no, VIDEO
               lanzarVideo(() => {
                   setMixDesbloqueado(true);
                   setCatSeleccionada("");
@@ -166,15 +169,24 @@ export const MenuOnline = ({ volver, onJuegoIniciado }: Props) => {
 
       // --- CASO 3: ES VIP / PREMIUM ---
       if (cat?.es_premium) {
-          // Si ya la desbloqueó en esta sesión, pasa de una
-          if (vipsDesbloqueadas.has(idSeleccionado)) {
+          if (isPremium) {
+              // Si es Premium real -> Pasa
               setCatSeleccionada(idSeleccionado);
           } else {
-              // Si no, video
-              lanzarVideo(() => {
-                  setVipsDesbloqueadas(prev => new Set(prev).add(idSeleccionado));
-                  setCatSeleccionada(idSeleccionado);
+              // ⛔ SI ES POBRE -> BLOQUEO TOTAL (NI VIDEO)
+              Swal.fire({
+                  title: '👑 Acceso VIP',
+                  text: 'Esta categoría es exclusiva para miembros Premium.',
+                  icon: 'warning',
+                  background: '#212529',
+                  color: '#fff',
+                  confirmButtonText: 'Entendido',
+                  confirmButtonColor: '#ffd700'
               });
+              
+              // Reseteamos el select a una categoría gratis para que no quede visualmente en la VIP
+              const primeraGratis = categorias.find(c => !c.es_premium);
+              setCatSeleccionada(primeraGratis?.id || "");
           }
           return;
       }
@@ -188,7 +200,10 @@ export const MenuOnline = ({ volver, onJuegoIniciado }: Props) => {
       setLoadingCats(true); 
       try {
           const catId = catSeleccionada === "" ? undefined : catSeleccionada;
-          await api.iniciarJuegoOnline(salaActiva.codigo, 'impostor', catId);
+          
+          // 👇 ENVIAMOS 'isPremium' AL BACKEND PARA QUE FILTRE EL MIX SI ES NECESARIO
+          await api.iniciarJuegoOnline(salaActiva.codigo, 'impostor', catId, isPremium);
+          
           setShowModalImpostor(false); 
       } catch (e) { mostrarAlerta('error', 'Error', 'Falló el inicio.'); }
       setLoadingCats(false);
@@ -318,7 +333,7 @@ export const MenuOnline = ({ volver, onJuegoIniciado }: Props) => {
                 </div>
             )}
 
-            {/* MODAL IMPOSTOR (ACTUALIZADO CON VIDEO REWARDED) */}
+            {/* MODAL IMPOSTOR (ACTUALIZADO: VIP ESTRICTO) */}
             <Modal show={showModalImpostor} onHide={() => setShowModalImpostor(false)} centered dialogClassName="modal-glass">
                 <Modal.Header closeButton closeVariant="white">
                     <Modal.Title className="text-info fw-bold">CONFIGURAR IMPOSTOR 🕵️‍♂️</Modal.Title>
@@ -336,17 +351,16 @@ export const MenuOnline = ({ volver, onJuegoIniciado }: Props) => {
                             >
                                 {/* OPCIÓN MIX DINÁMICA */}
                                 <option value="">
-                                    {cargandoAnuncio ? '⏳ Cargando video...' : (mixDesbloqueado ? '✨ Aleatoria (Mix)' : '📺 Aleatoria (Mix) - Ver Video')}
+                                    {cargandoAnuncio ? '⏳ Cargando video...' : (isPremium || mixDesbloqueado ? '✨ Aleatoria (Mix)' : '📺 Aleatoria (Mix) - Ver Video')}
                                 </option>
                                 
                                 {categorias.map((c: any) => {
-                                    // Verificamos si esta categoría VIP ya fue desbloqueada
-                                    const esVip = c.es_premium;
-                                    const estaDesbloqueada = vipsDesbloqueadas.has(c.id);
-                                    
                                     let label = c.titulo;
-                                    if (esVip) {
-                                        label = estaDesbloqueada ? `⭐ ${c.titulo} (Desbloqueada)` : `🔒 ${c.titulo} (Ver Video)`;
+                                    // Si es VIP y no soy premium -> Candado (BLOQUEADO)
+                                    if (c.es_premium && !isPremium) {
+                                        label = `🔒 ${c.titulo} (Premium)`; // Solo Premium
+                                    } else if (c.es_premium && isPremium) {
+                                        label = `⭐ ${c.titulo}`; // VIP Desbloqueado
                                     }
 
                                     return <option key={c.id} value={c.id}>{label}</option>;

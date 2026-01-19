@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { Container, Row, Col, Modal, ListGroup, Form } from 'react-bootstrap';
 import { api } from '../lib/api';
-import { AdService } from '../lib/AdMobUtils'; // 👈 USAMOS EL SERVICIO CENTRALIZADO
+import { AdService } from '../lib/AdMobUtils';
+import { useSubscription } from '../context/SubscriptionContext'; // 👈 1. IMPORTAR
 import '../App.css';
 
 interface Props { volver: () => void; }
@@ -13,6 +14,8 @@ interface MensajeEstado {
 }
 
 export const LaJefa = ({ volver }: Props) => {
+  const { isPremium } = useSubscription(); // 👈 2. OBTENER STATUS PREMIUM
+  
   // --- ESTADOS ---
   const [jugadores, setJugadores] = useState<string[]>([]);
   const [inputNombre, setInputNombre] = useState("");
@@ -56,17 +59,19 @@ export const LaJefa = ({ volver }: Props) => {
         setShowResultado(true);
     }
 
-    // 2️⃣ PUBLICIDAD (PEAJE)
-    const turnosJugados = contadorTurnos + 1; 
-    if (turnosJugados >= FRECUENCIA_ADS) {
-        console.log("🛑 ¡ALTO AHÍ! Momento de publicidad.");
-        
-        // Llamamos al servicio limpio
-        await AdService.mostrarIntersticial();
-        
-        setContadorTurnos(0);
-    } else {
-        setContadorTurnos(turnosJugados);
+    // 2️⃣ PUBLICIDAD (PEAJE) - 👈 3. SOLO SI NO ES PREMIUM
+    if (!isPremium) {
+        const turnosJugados = contadorTurnos + 1; 
+        if (turnosJugados >= FRECUENCIA_ADS) {
+            console.log("🛑 ¡ALTO AHÍ! Momento de publicidad.");
+            
+            // Llamamos al servicio limpio
+            await AdService.mostrarIntersticial();
+            
+            setContadorTurnos(0);
+        } else {
+            setContadorTurnos(turnosJugados);
+        }
     }
 
     // 3️⃣ SACAR CARTA (API)
@@ -146,6 +151,22 @@ export const LaJefa = ({ volver }: Props) => {
     } catch (e) { console.error(e); }
   }
 
+  // --- HELPER PARA SALIR (PROTEGIDO) ---
+  const manejarSalida = async () => {
+      // Solo mostramos anuncio si NO es premium
+      if (!isPremium) {
+          await AdService.mostrarIntersticial();
+      }
+      volver();
+  };
+
+  const manejarSalidaJuego = async () => {
+      if (!isPremium) {
+          await AdService.mostrarIntersticial();
+      }
+      setSala(null);
+  };
+
   // --- VISTA 1: LOBBY ---
   if (!sala) {
     return (
@@ -190,9 +211,9 @@ export const LaJefa = ({ volver }: Props) => {
               COMENZAR PARTIDA
             </button>
             
-            {/* 🔽 SALIR CON ANUNCIO 🔽 */}
+            {/* 🔽 SALIR 🔽 */}
             <button className="btn btn-link text-white-50 text-decoration-none w-100 small" 
-                onClick={async () => { await AdService.mostrarIntersticial(); volver(); }}>
+                onClick={manejarSalida}>
                 Volver al menú
             </button>
         </div>
@@ -207,7 +228,7 @@ export const LaJefa = ({ volver }: Props) => {
       {/* HEADER */}
       <div className="w-100 d-flex justify-content-between align-items-center mb-4 px-3" style={{maxWidth: '500px'}}>
         <div className="titulo-neon fs-4 m-0">LA JEFA</div>
-        <button className="btn btn-sm btn-outline-light rounded-pill px-3" onClick={async () => { await AdService.mostrarIntersticial(); setSala(null); }}>SALIR</button>
+        <button className="btn btn-sm btn-outline-light rounded-pill px-3" onClick={manejarSalidaJuego}>SALIR</button>
       </div>
 
       {/* CARTA CENTRAL (Estilo naipe) */}

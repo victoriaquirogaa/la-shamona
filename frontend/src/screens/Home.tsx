@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { Container, Badge, Modal, Form } from 'react-bootstrap';
 import { useAuth } from '../context/AuthContext'; 
-import '../App.css'; // 👈 Importante para los estilos neon
+import { useSubscription } from '../context/SubscriptionContext'; // 👈 1. IMPORTAR CONTEXTO
+import '../App.css'; 
 
 interface Props {
   irA: (pantalla: string) => void; 
@@ -9,6 +10,7 @@ interface Props {
 
 export const Home = ({ irA }: Props) => {
   const { user, settings, updateSettings, logout } = useAuth();
+  const { isPremium } = useSubscription(); // 👈 2. LEER SI ES VIP
   const [showConfig, setShowConfig] = useState(false);
 
   return (
@@ -22,22 +24,35 @@ export const Home = ({ irA }: Props) => {
             <small className="text-white-50 fst-italic" style={{letterSpacing: '1px'}}>Tu compañero de gira 🚌</small>
         </div>
         
-        {/* --- PERFIL (Pill Style) --- */}
-        <div 
-            className="profile-pill d-flex align-items-center ps-3 pe-1 py-1" 
-            style={{cursor: 'pointer'}}
-            onClick={() => setShowConfig(true)}
-        >
-            <span className="fw-bold me-2 small text-info text-uppercase">{user?.nombre}</span>
-            <div 
-              className="rounded-circle overflow-hidden border border-info d-flex align-items-center justify-content-center bg-dark" 
-              style={{width: '38px', height: '38px'}}
+        {/* GRUPO DERECHA: TIENDA + PERFIL */}
+        <div className="d-flex align-items-center gap-2">
+            
+            {/* 👇 3. BOTÓN TIENDA (NUEVO) */}
+            <button 
+                className={`btn btn-sm rounded-pill fw-bold border-0 animate-pulse ${isPremium ? 'bg-warning text-dark' : 'btn-outline-warning'}`}
+                style={{ height: '38px' }} // Misma altura que el perfil
+                onClick={() => irA('store')}
             >
-                {user?.avatar?.startsWith('http') ? (
-                    <img src={user.avatar} alt="User" style={{width: '100%', height: '100%', objectFit: 'cover'}} />
-                ) : (
-                    <span style={{fontSize: '1.2rem'}}>{user?.avatar || '😎'}</span>
-                )}
+                {isPremium ? '👑 VIP' : '💎 TIENDA'}
+            </button>
+
+            {/* --- PERFIL (Pill Style) --- */}
+            <div 
+                className="profile-pill d-flex align-items-center ps-3 pe-1 py-1" 
+                style={{cursor: 'pointer'}}
+                onClick={() => setShowConfig(true)}
+            >
+                <span className="fw-bold me-2 small text-info text-uppercase d-none d-sm-block">{user?.nombre}</span>
+                <div 
+                  className="rounded-circle overflow-hidden border border-info d-flex align-items-center justify-content-center bg-dark" 
+                  style={{width: '38px', height: '38px'}}
+                >
+                    {user?.avatar?.startsWith('http') ? (
+                        <img src={user.avatar} alt="User" style={{width: '100%', height: '100%', objectFit: 'cover'}} />
+                    ) : (
+                        <span style={{fontSize: '1.2rem'}}>{user?.avatar || '😎'}</span>
+                    )}
+                </div>
             </div>
         </div>
       </div>
@@ -98,6 +113,11 @@ export const Home = ({ irA }: Props) => {
             <div className="text-center mb-4">
                 <div className="display-1 mb-2">{user?.avatar || '😎'}</div>
                 <h3 className="fw-bold text-white">{user?.nombre}</h3>
+                
+                {/* Etiqueta VIP en el perfil también */}
+                {isPremium && <Badge bg="warning" text="dark" className="mb-3">👑 MIEMBRO VIP</Badge>}
+
+                <br/>
                 <button className="btn btn-outline-danger btn-sm rounded-pill mt-2 px-4" onClick={logout}>
                     Cerrar Sesión
                 </button>

@@ -2,8 +2,8 @@ import { useState, useEffect } from 'react';
 import { Container, Spinner } from 'react-bootstrap';
 import { api } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
+import { useSubscription } from '../context/SubscriptionContext'; // 👈 1. IMPORTAR
 import '../App.css'; 
-// 🗑️ Borramos AdService de acá para que no moleste
 
 interface Props {
   datos: { codigo: string; soyHost: boolean; nombre: string }; 
@@ -12,6 +12,7 @@ interface Props {
 
 export const ImpostorOnline = ({ datos, salir }: Props) => {
   const { user } = useAuth();
+  const { isPremium } = useSubscription(); // 👈 2. OBTENER ESTADO PREMIUM
   
   // ESTADOS
   const [sala, setSala] = useState<any>(null); 
@@ -28,14 +29,13 @@ export const ImpostorOnline = ({ datos, salir }: Props) => {
         setSala(data);
         setLoading(false);
 
-        // 👇👇 SOLUCIÓN AL EMPATE 👇👇
+        // SOLUCIÓN AL EMPATE
         const votosServer = data.datos_juego?.votos || {};
         const miNombre = datos.nombre;
         
-        // Si yo creo que voté, pero el server borró los votos (empate), me habilito de nuevo
-        if (!votosServer[miNombre]) {
-             setMiVoto(null); 
-        }
+            if (!votosServer[miNombre]) {
+                setMiVoto(null); 
+            }
 
       } catch (e) { console.error("Error sync", e); }
     };
@@ -73,15 +73,15 @@ export const ImpostorOnline = ({ datos, salir }: Props) => {
   const handleReiniciar = async () => {
       setReiniciando(true);
       try {
-        // 🚀 SIN ANUNCIO: Reinicia directo para mantener el ritmo
-        await api.iniciarJuegoOnline(datos.codigo, 'impostor');
+        // 🚀 3. ENVIAR PREMIUM STATUS AL REINICIAR
+        // Si no pasamos categoría (undefined), es Mix. El backend usará isPremium para filtrar.
+        await api.iniciarJuegoOnline(datos.codigo, 'impostor', undefined, isPremium); 
         setMiVoto(null);
       } catch (e) { console.error(e); }
-      setReiniciando(false);
+       setReiniciando(false);
   };
 
   const handleSalir = async () => {
-      // 🚀 SIN ANUNCIO: Sale directo al Lobby
       salir();
   };
 

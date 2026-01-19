@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import { AuthProvider, useAuth } from './context/AuthContext';
-import { Capacitor } from '@capacitor/core'; // 👈 Importante para detectar si es iOS
-
-// 👇 Importamos el plugin que instalaste para el permiso de rastreo en iOS
+// 👇 Importamos el Provider y el Hook
+import { SubscriptionProvider, useSubscription } from './context/SubscriptionContext'; 
+import { Capacitor } from '@capacitor/core'; 
 import { AppTrackingTransparency } from 'capacitor-plugin-app-tracking-transparency';
 
 import { 
@@ -17,6 +17,7 @@ import { Welcome } from './screens/Welcome';
 import { Home } from './screens/Home';
 import { MenuOffline } from './screens/MenuOffline';
 import { MenuOnline } from './screens/MenuOnline';
+import { Store } from './screens/Store'; // 👈 Importamos la Tienda
 
 // JUEGOS OFFLINE
 import { LaJefa } from './screens/LaJefa';
@@ -26,25 +27,32 @@ import { Impostor } from './screens/Impostor';
 
 const AppController = () => {
   const { user } = useAuth();
+  const { isPremium } = useSubscription(); // 👈 Leemos si es VIP
   const [vista, setVista] = useState("home");
 
   // --- 💸 CONFIGURACIÓN DE PUBLICIDAD (ADMOB) 💸 ---
   useEffect(() => {
     const iniciarPublicidad = async () => {
       try {
-        
-        // 1. SOLO PARA IOS: Pedir permiso de rastreo (Cartelito de Apple)
+        // 🚫 SI ES PREMIUM, NO MOSTRAMOS NADA Y OCULTAMOS BANNER EXISTENTE
+        if (isPremium) {
+            console.log("💎 Usuario Premium: Publicidad desactivada");
+            await AdMob.hideBanner().catch(() => {}); // Ocultar por si acaso
+            return; 
+        }
+
+        // 1. SOLO PARA IOS: Pedir permiso de rastreo
         if (Capacitor.getPlatform() === 'ios') {
             const status = await AppTrackingTransparency.requestPermission();
             console.log("Permiso iOS Tracking:", status);
         }
 
-        // 2. Inicializar AdMob (Sin la línea roja que daba error)
+        // 2. Inicializar AdMob
         await AdMob.initialize({
           initializeForTesting: true,
         });
 
-        // 3. Mostrar Banner Abajo
+        // 3. Mostrar Banner Abajo (Solo si NO es premium)
         await AdMob.showBanner({
           adId: 'ca-app-pub-3940256099942544/6300978111', 
           adSize: BannerAdSize.BANNER,
@@ -62,7 +70,7 @@ const AppController = () => {
     if (user) {
       iniciarPublicidad();
     }
-  }, [user]);
+  }, [user, isPremium]); // 👈 Se ejecuta si el usuario cambia o si compra el Premium
   // ---------------------------------------------------
 
   if (!user) return <Welcome />;
@@ -74,6 +82,7 @@ const AppController = () => {
   switch (vista) {
     // --- NAVEGACIÓN BÁSICA ---
     case 'home': return <Home irA={setVista} />;
+    case 'store': return <Store volver={() => setVista('home')} />; // 👈 RUTA TIENDA
     case 'menu-offline': return <MenuOffline irA={setVista} volver={() => setVista('home')} />;
 
     // --- JUEGOS OFFLINE ---
@@ -97,7 +106,10 @@ const AppController = () => {
 function App() {
   return (
     <AuthProvider>
-      <AppController />
+      {/* 👇 4. ENVOLVEMOS LA APP CON EL PROVIDER DE SUSCRIPCIÓN */}
+      <SubscriptionProvider>
+         <AppController />
+      </SubscriptionProvider>
     </AuthProvider>
   );
 }
