@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import { Container, Spinner } from 'react-bootstrap';
 import { api } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
-import { useSubscription } from '../context/SubscriptionContext'; // 👈 1. IMPORTAR
+import { useSubscription } from '../context/SubscriptionContext'; 
+import { AdService } from '../lib/AdMobUtils'; // 👈 Importamos AdService
 import '../App.css'; 
 
 interface Props {
@@ -12,7 +13,8 @@ interface Props {
 
 export const ImpostorOnline = ({ datos, salir }: Props) => {
   const { user } = useAuth();
-  const { isPremium } = useSubscription(); // 👈 2. OBTENER ESTADO PREMIUM
+  // 👇 1. USAMOS 'accesoVip' (para reiniciar con permisos) y 'sinAnuncios' (para la publi)
+  const { accesoVip, sinAnuncios } = useSubscription(); 
   
   // ESTADOS
   const [sala, setSala] = useState<any>(null); 
@@ -33,9 +35,9 @@ export const ImpostorOnline = ({ datos, salir }: Props) => {
         const votosServer = data.datos_juego?.votos || {};
         const miNombre = datos.nombre;
         
-            if (!votosServer[miNombre]) {
-                setMiVoto(null); 
-            }
+        if (!votosServer[miNombre]) {
+             setMiVoto(null); 
+        }
 
       } catch (e) { console.error("Error sync", e); }
     };
@@ -73,15 +75,18 @@ export const ImpostorOnline = ({ datos, salir }: Props) => {
   const handleReiniciar = async () => {
       setReiniciando(true);
       try {
-        // 🚀 3. ENVIAR PREMIUM STATUS AL REINICIAR
-        // Si no pasamos categoría (undefined), es Mix. El backend usará isPremium para filtrar.
-        await api.iniciarJuegoOnline(datos.codigo, 'impostor', undefined, isPremium); 
+        // 🚀 2. ENVIAR PERMISO AL REINICIAR (accesoVip)
+        await api.iniciarJuegoOnline(datos.codigo, 'impostor', undefined, accesoVip); 
         setMiVoto(null);
       } catch (e) { console.error(e); }
        setReiniciando(false);
   };
 
   const handleSalir = async () => {
+      // 👇 3. PUBLICIDAD SOLO SI NO ES AMIGO/PREMIUM
+      if (!sinAnuncios) {
+          await AdService.mostrarIntersticial();
+      }
       salir();
   };
 
@@ -127,7 +132,8 @@ export const ImpostorOnline = ({ datos, salir }: Props) => {
                 ) : (
                     <div className="card-shamona p-4 shadow-lg animate-in zoom-in d-flex flex-column justify-content-center align-items-center text-center"
                          style={{
-                             width: '280px', height: '280px',
+                             width: 'min(80vw, 300px)', // Responsive
+                             aspectRatio: '1/1',
                              border: `3px solid ${soyImpostor ? 'var(--neon-pink)' : '#00ff9d'}`,
                              background: soyImpostor ? 'rgba(255, 0, 85, 0.1)' : 'rgba(0, 255, 157, 0.1)'
                          }}>
@@ -140,7 +146,15 @@ export const ImpostorOnline = ({ datos, salir }: Props) => {
                         ) : (
                             <>
                                 <small className="text-white-50 ls-2 text-uppercase mb-2">LA PALABRA ES</small>
-                                <h2 className="fw-black text-white display-4 mb-3 text-wrap text-uppercase" style={{textShadow: '0 0 20px white'}}>
+                                {/* 👇 4. FIX VISUAL: LETRA ADAPTABLE */}
+                                <h2 
+                                    className="fw-black text-white mb-3 text-wrap text-uppercase" 
+                                    style={{
+                                        textShadow: '0 0 20px white',
+                                        fontSize: (palabra_secreta?.length || 0) > 10 ? '2.5rem' : '3.5rem',
+                                        lineHeight: '1.1'
+                                    }}
+                                >
                                     {palabra_secreta?.toUpperCase()}
                                 </h2>
                             </>

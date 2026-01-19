@@ -12,7 +12,9 @@ interface Props {
 }
 
 export const JuegoSimple = ({ juego, volver }: Props) => {
-  const { isPremium } = useSubscription(); 
+  // 👇 1. TRAEMOS LOS 3 PERMISOS NUEVOS
+  const { accesoVip, mixSinVideo, sinAnuncios } = useSubscription(); 
+  
   const [modo, setModo] = useState<string | null>(null);
   const [frase, setFrase] = useState("Presioná Siguiente para arrancar");
   const [loading, setLoading] = useState(false);
@@ -32,7 +34,6 @@ export const JuegoSimple = ({ juego, volver }: Props) => {
         color: '#00d4ff', 
         opciones: [
             {id: 'gratis', label: 'MODO CLÁSICO'}, 
-            // Yo Nunca: Picante y Mix son SOLO VIP
             {id: 'hot', label: '🔥 PICANTE', vipOnly: true}, 
             {id: 'mix', label: '✨ MIX (Solo VIP)', vipOnly: true} 
         ] 
@@ -44,7 +45,6 @@ export const JuegoSimple = ({ juego, volver }: Props) => {
         opciones: [
             {id: 'gratis', label: '¿QUIÉN ES?'}, 
             {id: 'rico_pobre', label: 'RICO O POBRE'}
-            // Sin Mix acá
         ] 
     },
     'preguntas': { 
@@ -54,7 +54,6 @@ export const JuegoSimple = ({ juego, volver }: Props) => {
         opciones: [
             {id: 'polemicas', label: 'POLÉMICAS'}, 
             {id: 'profundas', label: 'PROFUNDAS'}, 
-            // Preguntas: Picantes es VIP, Mix es con Video
             {id: 'picantes', label: '😈 PICANTES', vipOnly: true}, 
             {id: 'mix', label: '✨ MIX (Video)'} 
         ] 
@@ -65,24 +64,23 @@ export const JuegoSimple = ({ juego, volver }: Props) => {
   const seleccionarModo = async (opcion: any) => {
       const opcionId = opcion.id;
 
-      // A. CASO VIP ONLY (Yo Nunca Hot/Mix, Preguntas Picantes)
-      // Si dice vipOnly y NO sos premium -> BLOQUEO TOTAL (Sin video)
-      if (opcion.vipOnly && !isPremium) {
+      // A. CASO VIP ONLY (Categorías)
+      // Usamos 'accesoVip' (que incluye a los Amigos)
+      if (opcion.vipOnly && !accesoVip) {
           Swal.fire({
-              title: '👑 Acceso VIP',
-              text: 'Esta categoría es exclusiva para miembros Premium.',
+              title: '🔒 Acceso Restringido',
+              text: 'Categoría exclusiva VIP/Premium.', // Texto corregido
               icon: 'warning',
               background: '#212529',
               color: '#fff',
-              confirmButtonText: 'Entendido',
               confirmButtonColor: '#ffd700'
           });
           return;
       }
 
-      // B. CASO MIX NORMAL (Solo en Preguntas ahora)
-      // Si es Mix, NO es vipOnly, no pagó y no desbloqueó -> VIDEO
-      if (opcionId === 'mix' && !mixDesbloqueado && !isPremium) {
+      // B. CASO MIX (El Peaje de Video)
+      // Usamos 'mixSinVideo' (que es False para Amigos -> Tienen que ver video)
+      if (opcionId === 'mix' && !mixSinVideo && !mixDesbloqueado) {
           setCargandoVideo(true);
           await AdService.mirarVideoRecompensa(
               () => { // GANA
@@ -93,6 +91,7 @@ export const JuegoSimple = ({ juego, volver }: Props) => {
                   Swal.fire({ title: '¡Mix Activado!', icon: 'success', timer: 1500, showConfirmButton: false, background: '#222', color: '#fff'});
               },
               () => { // FALLA
+                  // (Opcional: Si falla el video, igual se lo damos o no. Acá se lo damos por UX)
                   setMixDesbloqueado(true);
                   setModo('mix');
                   sacarCarta('mix');
@@ -108,8 +107,9 @@ export const JuegoSimple = ({ juego, volver }: Props) => {
 
   // 2️⃣ SACAR CARTA
   const sacarCarta = async (categoria: string) => {
-    // Solo mostramos anuncios si NO es Premium
-    if (!isPremium) {
+    // A. ANUNCIOS INTERSTICIALES (Cada X cartas)
+    // Usamos 'sinAnuncios' (Amigos = True -> No ven anuncios)
+    if (!sinAnuncios) {
         const nuevoContador = contadorAds + 1;
         if (nuevoContador >= FRECUENCIA_ANUNCIOS) {
             await AdService.mostrarIntersticial();
@@ -122,9 +122,12 @@ export const JuegoSimple = ({ juego, volver }: Props) => {
     setLoading(true);
     let data;
     try {
-        if (juego === 'yo-nunca') data = await api.getFraseYoNunca(categoria);
-        else if (juego === 'votacion') data = await api.getFraseVotacion(categoria);
-        else if (juego === 'preguntas') data = await api.getPregunta(categoria);
+        // B. LLAMADA A LA API
+        // Pasamos 'accesoVip' como flag. 
+        // Si es Amigo (true), el backend deja pasar categorías VIP.
+        if (juego === 'yo-nunca') data = await api.getFraseYoNunca(categoria, accesoVip);
+        else if (juego === 'votacion') data = await api.getFraseVotacion(categoria, accesoVip);
+        else if (juego === 'preguntas') data = await api.getPregunta(categoria, accesoVip);
         
         setFrase(data?.texto || data?.pregunta || "Error de conexión.");
     } catch (e) {
@@ -155,9 +158,11 @@ export const JuegoSimple = ({ juego, volver }: Props) => {
             const esMix = op.id === 'mix';
             const esVipOnly = op.vipOnly; 
 
-            // Estados de bloqueo visual
-            const mixBloqueado = esMix && !mixDesbloqueado && !isPremium && !esVipOnly; // Solo si NO es vipOnly (el de preguntas)
-            const vipBloqueado = esVipOnly && !isPremium;
+            // 👇 LÓGICA VISUAL ACTUALIZADA
+            // Si es Mix, NO tengo mixSinVideo y NO lo desbloqueé -> Bloqueado (Muestra tele)
+            const mixBloqueado = esMix && !mixDesbloqueado && !mixSinVideo && !esVipOnly; 
+            // Si es VIP Only y NO tengo accesoVip -> Bloqueado (Candado)
+            const vipBloqueado = esVipOnly && !accesoVip;
 
             return (
                 <button 
@@ -173,10 +178,9 @@ export const JuegoSimple = ({ juego, volver }: Props) => {
                     disabled={cargandoVideo}
                 >
                   {cargandoVideo && esMix ? <Spinner size="sm"/> : 
-                   // LÓGICA DE TEXTO DEL BOTÓN
                    vipBloqueado ? `🔒 ${op.label}` :
                    mixBloqueado ? "📺 VER VIDEO PARA MIX" : 
-                   (esMix && isPremium ? "✨ MIX (VIP)" : op.label)
+                   (esMix && mixSinVideo ? "✨ MIX (VIP)" : op.label)
                   }
                 </button>
             );

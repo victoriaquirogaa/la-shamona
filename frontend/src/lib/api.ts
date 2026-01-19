@@ -1,32 +1,123 @@
 export const API_URL = "http://127.0.0.1:8000";
 
 // 🚨 FUNCIÓN ESPÍA: Atrapa el error y te lo muestra en la cara
+// 🚨 FUNCIÓN ESPÍA (Versión Relajada)
 const safeFetch = async (endpoint: string, options?: RequestInit) => {
   const fullUrl = `${API_URL}${endpoint}`;
   try {
-    console.log(`Intentando conectar a: ${fullUrl}`);
+    // console.log(`Intentando conectar a: ${fullUrl}`); // Comentamos para limpiar consola
     const response = await fetch(fullUrl, options);
     
     if (!response.ok) {
-      throw new Error(`Error del Servidor: ${response.status} ${response.statusText}`);
+        // Si es un error 404 (No encontrado), a veces es normal (ej. usuario nuevo), no alertamos.
+        if (response.status === 404) {
+            console.warn(`404 en ${endpoint} - Probablemente normal.`);
+            throw new Error("404 Not Found");
+        }
+        
+        const errorBody = await response.text(); 
+        console.error("Backend Error:", errorBody);
+        throw new Error(`Error del Servidor: ${response.status}`);
     }
     return response;
   } catch (error: any) {
-    // 🛑 ACÁ SALTA EL CARTEL CON EL DATO CLAVE
-    alert(`⛔ ERROR DE CONEXIÓN ⛔\n\nURL: ${fullUrl}\n\nMENSAJE: ${error.message}\n\n¿Es la IP correcta?`);
+    console.error("Fetch Error:", error);
+
+    // 🛑 FILTRO DE ALERTAS:
+    // Solo mostramos alerta si NO es un error de cancelación o aborto (común en React)
+    if (error.name !== 'AbortError' && error.message !== "404 Not Found") {
+        // Opcional: Podés comentar este alert también si querés paz total
+        // alert(`⛔ ERROR DE CONEXIÓN...`); 
+        console.log("Error de conexión ignorado visualmente para no molestar.");
+    }
     throw error;
   }
 };
 
+const getDeviceId = () => {
+  let id = localStorage.getItem('device_id');
+  if (!id) {
+    id = 'user_' + Math.random().toString(36).substring(2, 15);
+    localStorage.setItem('device_id', id);
+  }
+  return id;
+};
+
+// Objeto principal API
 export const api = {
   checkHealth: async () => {
     try {
-      const res = await fetch(`${API_URL}/`); // Este lo dejamos sin alerta para no molestar al inicio
+      const res = await fetch(`${API_URL}/`);
       return await res.json();
     } catch (e) { return null; }
   },
 
-  // Juegos Simples (Ahora aceptan esPremium para el filtro VIP)
+  // --- USUARIOS Y PERFIL (ESTO ES LO QUE TE FALTABA) ---
+  
+  // 1. Sincronizar (Login)
+  sincronizarUsuario: async (user: any) => {
+    try {
+      const response = await fetch(`${API_URL}/usuarios/sincronizar`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          uid: user.uid,
+          email: user.email,
+          nombre: user.displayName || "Viajero Anónimo",
+          avatar: user.photoURL
+        })
+      });
+      return await response.json();
+    } catch (error) {
+      console.error("Error sincronizando usuario:", error);
+      return null;
+    }
+  },
+
+  // 2. Actualizar Nombre (Perfil) - AHORA SÍ ESTÁ DENTRO DE 'api'
+  actualizarNombreUsuario: async (uid: string, nuevoNombre: string) => {
+    const response = await fetch(`${API_URL}/usuarios/${uid}/nombre`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ nombre: nuevoNombre })
+    });
+    if (!response.ok) throw new Error("Error al actualizar nombre");
+    return await response.json();
+  },
+
+  // 3. Obtener Datos (Para ver si es Amigo)
+  getDatosUsuario: async (uid: string) => {
+    try {
+      const response = await fetch(`${API_URL}/usuarios/${uid}`);
+      if (!response.ok) return null;
+      return await response.json();
+    } catch (error) {
+      console.error("Error obteniendo datos usuario:", error);
+      return null;
+    }
+  },
+
+  // 4. Canjear Código
+  canjearCodigo: async (codigo: string) => {
+    const deviceId = getDeviceId(); 
+    const response = await safeFetch(`/usuarios/canjear-codigo`, { 
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ device_id: deviceId, codigo: codigo })
+    });
+    return await response.json();
+  },
+
+  getPermisosUsuario: async () => {
+    const deviceId = getDeviceId();
+    const response = await safeFetch(`/usuarios/${deviceId}/permisos`);
+    return await response.json();
+  },
+
+
+  // --- JUEGOS ---
+
+  // Juegos Simples
   getFraseYoNunca: async (cat: string, esPremium: boolean = false) => 
       (await safeFetch(`/juegos/yo-nunca/${cat}?es_premium=${esPremium}`)).json(),
 
@@ -79,7 +170,7 @@ export const api = {
       body: JSON.stringify({ codigo, juego: 'la-jefa' }) 
     })).json(),
 
-  // Impostor y otros
+  // Impostor
   getCategoriasImpostor: async () => {
     try {
         const res = await safeFetch(`/impostor/categorias`);
@@ -87,7 +178,6 @@ export const api = {
     } catch (e) { return []; }
   },
 
-  // 👇👇👇 FUNCIÓN ACTUALIZADA CON PERMISO VIP 👇👇👇
   crearPartidaImpostorLocal: async (jugadores: string[], categoriaId?: string, tienePermiso: boolean = false, esPremium: boolean = false) => {
     const deviceId = localStorage.getItem('device_id') || 'browser-client'; 
     const response = await safeFetch(`/impostor/crear-local`, { 
@@ -97,8 +187,8 @@ export const api = {
           jugadores, 
           categoria_id: categoriaId || null, 
           device_id: deviceId,
-          tiene_permiso: tienePermiso,   // Salvoconducto (Video)
-          es_usuario_premium: esPremium // 👈 NUEVO: Para filtrar el Mix
+          tiene_permiso: tienePermiso, 
+          es_usuario_premium: esPremium 
       })
     });
     return await response.json();
@@ -164,12 +254,11 @@ export const api = {
   },
 
   cerrarVotacion: async (codigoSala: string) => {
-    // Fíjate que apunte a /impostor, NO a /online
     const response = await fetch(`${API_URL}/impostor/cerrar-votacion`, { 
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ codigo: codigoSala })
     });
     return response.json();
-},
+  },
 };

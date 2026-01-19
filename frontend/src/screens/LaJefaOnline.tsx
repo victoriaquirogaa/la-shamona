@@ -4,7 +4,7 @@ import { api } from '../lib/api';
 import Swal from 'sweetalert2';
 import '../App.css'; 
 import { AdService } from '../lib/AdMobUtils';
-import { useSubscription } from '../context/SubscriptionContext'; // 👈 1. IMPORTAR
+import { useSubscription } from '../context/SubscriptionContext';
 
 interface Props {
   datos: { codigo: string; nombre: string; soyHost: boolean };
@@ -12,7 +12,9 @@ interface Props {
 }
 
 export const LaJefaOnline = ({ datos, salir }: Props) => {
-  const { isPremium } = useSubscription(); // 👈 2. OBTENER STATUS
+  // 👇 CAMBIO 1: Usamos 'sinAnuncios'
+  const { sinAnuncios } = useSubscription(); 
+  
   const [sala, setSala] = useState<any>(null);
   
   // MODALES
@@ -34,28 +36,35 @@ export const LaJefaOnline = ({ datos, salir }: Props) => {
         const data = await api.getSalaOnline(datos.codigo);
         setSala(data);
         
-        // CHECK DORMILÓN (Si cambió el turno y yo tenía el dedito -> PERDÍ)
+        // CHECK DORMILÓN (Si cambió el turno y es MÍO de nuevo, y tengo dedito -> PERDÍ)
         const turno = data.turno_actual || data.datos_juego?.turno_actual;
-        if (turno === datos.nombre && turnoAnterior.current !== datos.nombre) {
-             setTengoDedito((prev) => {
-                 if (prev) {
-                     Swal.fire({ title: '😴 ¡DORMISTE!', text: 'Se te venció el Dedito.', icon: 'info', timer: 2000, showConfirmButton: false });
-                     return false; 
-                 }
-                 return prev;
-             });
+        
+        // Solo chequeamos si el turno cambió efectivamente
+        if (turno && turno !== turnoAnterior.current) {
+            if (turno === datos.nombre) {
+                // Es mi turno de nuevo. Si tengo el dedito, dormí.
+                setTengoDedito((prev) => {
+                    if (prev) {
+                        Swal.fire({ title: '😴 ¡DORMISTE!', text: 'Se te venció el Dedito.', icon: 'info', timer: 2000, showConfirmButton: false });
+                        // Reportamos el trago automáticamente o dejamos que el juego fluya, 
+                        // pero visualmente se pierde el poder.
+                        return false; 
+                    }
+                    return prev;
+                });
+            }
+            turnoAnterior.current = turno;
         }
-        if (turno) turnoAnterior.current = turno;
 
       } catch (e) { console.error("Error sync", e); }
     }, 1000);
     return () => clearInterval(intervalo);
   }, [datos.codigo, datos.nombre]);
 
-  // 🚪 FUNCIÓN SEGURA PARA SALIR (PROTEGIDA VIP)
+  // 🚪 FUNCIÓN SEGURA PARA SALIR (PROTEGIDA)
   const handleSalir = async () => {
-      // 👈 3. SOLO MOSTRAMOS ANUNCIO SI NO ES PREMIUM
-      if (!isPremium) {
+      // 👇 CAMBIO 2: Usamos sinAnuncios
+      if (!sinAnuncios) {
           await AdService.mostrarIntersticial();
       }
       salir();
@@ -64,27 +73,23 @@ export const LaJefaOnline = ({ datos, salir }: Props) => {
   // Si no cargó la sala básica, spinner
   if (!sala) return <Container className="min-vh-100 d-flex justify-content-center align-items-center bg-dark"><Spinner animation="border" variant="danger"/></Container>;
 
-  // --- 🚨 DETECCIÓN DE ESTADO ZOMBIE (DATOS VACÍOS) ---
+  // --- DETECCIÓN DE ESTADO ZOMBIE ---
   const dj = sala.datos_juego || {};
   const datosVacios = Object.keys(dj).length === 0;
 
-  // FUNCIÓN PARA FORZAR INICIO (Versión Kickstart 🦵)
   const forzarInicio = async () => {
       setReiniciando(true);
       try {
-          console.log("🛠️ Intentando inicializar mazo a la fuerza...");
           await api.iniciarJuegoOnline(datos.codigo, 'la-jefa');
           await new Promise(r => setTimeout(r, 1000));
-          console.log("🃏 Pidiendo primera carta para despertar al mazo...");
           await api.sacarCartaOnline(datos.codigo);
       } catch (e) {
           console.error("Falló la inicialización manual:", e);
-          Swal.fire({ title: 'Error', text: 'El juego no responde. Probá crear otra sala.', icon: 'error' });
       }
       setReiniciando(false);
   };
 
-  // VISTA DE "PREPARANDO MESA" (Cuando falla la carga de datos)
+  // VISTA DE "MESA VACÍA"
   if (datosVacios) {
       return (
           <Container className="min-vh-100 d-flex flex-column align-items-center justify-content-center bg-dark text-white text-center p-4">
@@ -106,7 +111,6 @@ export const LaJefaOnline = ({ datos, salir }: Props) => {
           </Container>
       );
   }
-  // --------------------------------------------------------
 
   // DATOS NORMALES
   const fase = sala.fase || dj.fase || "ESPERANDO";
@@ -129,6 +133,7 @@ export const LaJefaOnline = ({ datos, salir }: Props) => {
           case 'ELEGIR_VICTIMA': setModoSeleccion('VICTIMA'); setShowSelector(true); break;
           case 'ASIGNAR_MASCOTA': case 'ASIGNAR_PUTA': case 'ELEGIR_PUTA': setModoSeleccion('MASCOTA'); setShowSelector(true); break;
           case 'TOMAN_TODOS': await api.tomanTodosOnline(datos.codigo); break;
+          // Al activar dedito, marcamos localmente y pasamos el turno
           case 'ACTIVAR_DEDITO': setTengoDedito(true); await api.pasarTurnoOnline(datos.codigo); break;
           default: handlePasar();
       }
@@ -186,16 +191,28 @@ export const LaJefaOnline = ({ datos, salir }: Props) => {
           {fase === 'ACCION' && carta && (
               <div className="text-center animate-in flip-in-y w-100 d-flex flex-column align-items-center">
                   <div className="card-shamona bg-white text-dark mb-4 position-relative shadow-lg" 
-                        style={{ width: '260px', height: '380px', borderRadius: '15px', border: '8px solid white' }}>
+                        style={{ 
+                            width: 'min(85vw, 320px)', // Ocupa el 85% del ancho del celu, pero máximo 320px
+                            height: 'auto',            // Altura automática
+                            aspectRatio: '2/3',        // Mantiene forma de carta
+                            borderRadius: '15px', 
+                            border: '8px solid white' 
+                        }}>
                       <div className="d-flex flex-column justify-content-between h-100 p-3">
                           <div className="d-flex justify-content-between align-items-start">
-                              <h1 className="fw-black m-0 lh-1 display-4">{carta.numero}</h1>
+                              {/* 👇 FIX VISUAL: Número adaptable */}
+                              <h1 className="fw-black m-0 lh-1" style={{fontSize: '3.5rem'}}>{carta.numero}</h1>
                               <h1 className="fw-black m-0 lh-1 display-4">{['Oro','Copa'].includes(carta.palo) ? '🪙' : '⚔️'}</h1>
                           </div>
+                          
                           <div className="my-2">
                               <h6 className="text-danger fw-bold text-uppercase ls-2 mb-1">REGLA</h6>
-                              <h3 className="fw-black lh-sm text-uppercase">{carta.texto}</h3>
+                              {/* 👇 FIX VISUAL: Texto regla adaptable (clamp) */}
+                              <h3 className="fw-black lh-sm text-uppercase" style={{fontSize: 'clamp(1.2rem, 5vw, 1.8rem)'}}>
+                                  {carta.texto}
+                              </h3>
                           </div>
+                          
                           <small className="text-muted fw-bold align-self-end text-uppercase">{carta.palo}</small>
                       </div>
                   </div>

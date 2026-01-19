@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Container, Row, Col, Modal, ListGroup, Form } from 'react-bootstrap';
 import { api } from '../lib/api';
 import { AdService } from '../lib/AdMobUtils';
-import { useSubscription } from '../context/SubscriptionContext'; // 👈 1. IMPORTAR
+import { useSubscription } from '../context/SubscriptionContext'; // 👈 1. Importamos el contexto
 import '../App.css';
 
 interface Props { volver: () => void; }
@@ -14,7 +14,8 @@ interface MensajeEstado {
 }
 
 export const LaJefa = ({ volver }: Props) => {
-  const { isPremium } = useSubscription(); // 👈 2. OBTENER STATUS PREMIUM
+  // 👇 CAMBIO 1: Usamos 'sinAnuncios' (para Amigos y Premium)
+  const { sinAnuncios } = useSubscription(); 
   
   // --- ESTADOS ---
   const [jugadores, setJugadores] = useState<string[]>([]);
@@ -22,7 +23,8 @@ export const LaJefa = ({ volver }: Props) => {
   const [sala, setSala] = useState<string | null>(null);
   const [carta, setCarta] = useState<any>(null);
   
-  const [hayDeditoPendiente, setHayDeditoPendiente] = useState(false);
+  // 👇 CAMBIO 2: Lógica de Dedito por Dueño (antes era boolean hayDeditoPendiente)
+  const [dueñoDedito, setDueñoDedito] = useState<string | null>(null);
   const [showModalDedito, setShowModalDedito] = useState(false);
   
   const [showResultado, setShowResultado] = useState(false);
@@ -30,7 +32,7 @@ export const LaJefa = ({ volver }: Props) => {
 
   // 📺 ESTADOS DE PUBLICIDAD
   const [contadorTurnos, setContadorTurnos] = useState(0);
-  const FRECUENCIA_ADS = 5; // El anuncio sale cada 5 cartas
+  const FRECUENCIA_ADS = 5; 
 
   // --- LÓGICA ---
   const agregarJugador = () => {
@@ -52,22 +54,12 @@ export const LaJefa = ({ volver }: Props) => {
   const sacar = async () => {
     if (!sala) return;
 
-    // 1️⃣ RESOLVER DEDITO VENCIDO
-    if (hayDeditoPendiente) {
-        setHayDeditoPendiente(false); 
-        setMensajeResultado({ titulo: "😴 DORMISTE", cuerpo: "Se te venció el Dedito por no usarlo.", tipo: "info" });
-        setShowResultado(true);
-    }
-
-    // 2️⃣ PUBLICIDAD (PEAJE) - 👈 3. SOLO SI NO ES PREMIUM
-    if (!isPremium) {
+    // 2️⃣ PUBLICIDAD (PEAJE) - Solo si NO tiene 'sinAnuncios'
+    if (!sinAnuncios) {
         const turnosJugados = contadorTurnos + 1; 
         if (turnosJugados >= FRECUENCIA_ADS) {
             console.log("🛑 ¡ALTO AHÍ! Momento de publicidad.");
-            
-            // Llamamos al servicio limpio
             await AdService.mostrarIntersticial();
-            
             setContadorTurnos(0);
         } else {
             setContadorTurnos(turnosJugados);
@@ -77,17 +69,35 @@ export const LaJefa = ({ volver }: Props) => {
     // 3️⃣ SACAR CARTA (API)
     try {
         const data = await api.sacarCartaLaJefa(sala);
+        
         if (data.terminado) {
           setMensajeResultado({ titulo: "¡Fin del Mazo!", cuerpo: "Mezclen y vuelvan a jugar.", tipo: "info" });
           setShowResultado(true);
-        } else {
-          if (data.accion_requerida === 'INICIAR_DEDITO') {
-              setHayDeditoPendiente(true); 
-              data.accion_requerida = 'NINGUNA';
-          }
-          setCarta(data);
-          
-          if (data.datos_extra?.detalle_toman_todos) {
+          return;
+        }
+
+        // 👇 CAMBIO 3: Lógica de Vencimiento del Dedito
+        // Antes se vencía siempre. Ahora solo se vence si el turno volvió al dueño original.
+        if (dueñoDedito && data.jugador === dueñoDedito) {
+            setDueñoDedito(null); // Se le borra el poder
+            setMensajeResultado({ 
+                titulo: "😴 DEDITO VENCIDO", 
+                cuerpo: `La ronda volvió a ${dueñoDedito} y no usó el poder. ¡Se anula!`, 
+                tipo: "info" 
+            });
+            setShowResultado(true);
+        }
+
+        // Si la nueva carta es Dedito, asignamos el nuevo dueño
+        if (data.accion_requerida === 'INICIAR_DEDITO') {
+            setDueñoDedito(data.jugador); 
+            data.accion_requerida = 'NINGUNA';
+        }
+
+        setCarta(data);
+        
+        // Lógica de "Toman Todos" y mensajes extra (Tu código original)
+        if (data.datos_extra?.detalle_toman_todos) {
              const listaVisual = (
                <ListGroup variant="flush" className="text-start w-100">
                  {data.datos_extra.detalle_toman_todos.map((p: any, idx: number) => (
@@ -100,10 +110,9 @@ export const LaJefa = ({ volver }: Props) => {
              );
              setMensajeResultado({ titulo: "🍻 ¡TOMAN TODOS!", cuerpo: listaVisual, tipo: "warning" });
              setShowResultado(true);
-          } else if (data.datos_extra?.mensaje_trago) {
+        } else if (data.datos_extra?.mensaje_trago) {
              setMensajeResultado({ titulo: "¡ATENCIÓN!", cuerpo: data.datos_extra.mensaje_trago, tipo: "warning" });
              setShowResultado(true);
-          }
         }
     } catch (error) { console.error("Error al sacar carta:", error); }
   };
@@ -115,7 +124,7 @@ export const LaJefa = ({ volver }: Props) => {
 
   const resolverDedito = async (perdedor: string) => {
     setShowModalDedito(false); 
-    setHayDeditoPendiente(false); 
+    setDueñoDedito(null); // Al usarlo, se consume
     await procesarCastigo(perdedor, false);
   };
 
@@ -153,15 +162,15 @@ export const LaJefa = ({ volver }: Props) => {
 
   // --- HELPER PARA SALIR (PROTEGIDO) ---
   const manejarSalida = async () => {
-      // Solo mostramos anuncio si NO es premium
-      if (!isPremium) {
+      // 👇 CAMBIO: Usamos sinAnuncios
+      if (!sinAnuncios) {
           await AdService.mostrarIntersticial();
       }
       volver();
   };
 
   const manejarSalidaJuego = async () => {
-      if (!isPremium) {
+      if (!sinAnuncios) {
           await AdService.mostrarIntersticial();
       }
       setSala(null);
@@ -176,7 +185,6 @@ export const LaJefa = ({ volver }: Props) => {
         <div className="card-shamona p-4 w-100 animate-in zoom-in" style={{ maxWidth: '400px' }}>
             <h5 className="text-white-50 mb-3 text-uppercase small fw-bold">Armá la ronda</h5>
             
-            {/* INPUT JUGADOR */}
             <div className="d-flex gap-2 mb-3">
               <Form.Control 
                 placeholder="Nombre (ej: Tincho)" 
@@ -189,7 +197,6 @@ export const LaJefa = ({ volver }: Props) => {
               <button className="btn-neon-main py-1 px-3" style={{width: 'auto'}} onClick={agregarJugador}>+</button>
             </div>
 
-            {/* LISTA JUGADORES */}
             <div className="mb-4 d-flex flex-wrap gap-2 justify-content-center" style={{minHeight: '50px'}}>
               {jugadores.map((j, i) => (
                 <div key={i} className="px-3 py-1 rounded-pill bg-secondary text-white small fw-bold d-flex align-items-center gap-2" 
@@ -201,7 +208,6 @@ export const LaJefa = ({ volver }: Props) => {
               {jugadores.length === 0 && <small className="text-white-50 fst-italic mt-2">Agregá jugadores para empezar...</small>}
             </div>
 
-            {/* BOTONES ACCIÓN */}
             <button 
                 className="btn-neon-secondary w-100 py-3 fw-bold mb-3" 
                 style={{color: 'var(--neon-pink)', borderColor: 'var(--neon-pink)'}}
@@ -211,7 +217,6 @@ export const LaJefa = ({ volver }: Props) => {
               COMENZAR PARTIDA
             </button>
             
-            {/* 🔽 SALIR 🔽 */}
             <button className="btn btn-link text-white-50 text-decoration-none w-100 small" 
                 onClick={manejarSalida}>
                 Volver al menú
@@ -225,33 +230,37 @@ export const LaJefa = ({ volver }: Props) => {
   return (
     <Container className="min-vh-100 d-flex flex-column align-items-center py-4 text-center position-relative">
       
-      {/* HEADER */}
       <div className="w-100 d-flex justify-content-between align-items-center mb-4 px-3" style={{maxWidth: '500px'}}>
         <div className="titulo-neon fs-4 m-0">LA JEFA</div>
         <button className="btn btn-sm btn-outline-light rounded-pill px-3" onClick={manejarSalidaJuego}>SALIR</button>
       </div>
 
-      {/* CARTA CENTRAL (Estilo naipe) */}
       <div className="flex-grow-1 d-flex flex-column justify-content-center align-items-center w-100">
           {carta ? (
             <div className="card-shamona bg-white text-dark mb-4 position-relative shadow-lg animate-in flip-in-y" 
-                 style={{ width: '280px', height: '420px', borderRadius: '15px', border: '8px solid white' }}>
+                 style={{ 
+                    width: 'min(85vw, 320px)', // Ocupa el 85% del ancho del celu, pero máximo 320px
+                    height: 'auto',            // Altura automática
+                    aspectRatio: '2/3',        // Mantiene forma de carta
+                    borderRadius: '15px', 
+                    border: '8px solid white' 
+                }}>
               <div className="d-flex flex-column justify-content-between h-100 p-3">
                 
-                {/* Cabecera Carta */}
                 <div className="d-flex justify-content-between align-items-start">
-                    <h1 className="fw-black m-0 lh-1" style={{fontSize: '3.5rem'}}>{carta.carta.split(" ")[0]}</h1>
+                    {/* 👇 CAMBIO 4: Texto dinámico para que entre '10 de Espada' sin romperse */}
+                    <h1 className="fw-black m-0 lh-1" style={{fontSize: 'clamp(2.5rem, 15vw, 3.5rem)'}}>
+                        {carta.carta.split(" ")[0]}
+                    </h1>
                     <div style={{fontSize: '3rem'}}>{['Oro','Copa','Basto'].some((x:string) => carta.carta.includes(x)) ? '🪙' : '⚔️'}</div>
                 </div>
                 
-                {/* Cuerpo (Regla) */}
                 <div className="my-2">
                   <div className="text-danger fw-bold text-uppercase small ls-2 mb-1" style={{letterSpacing: '2px'}}>REGLA</div>
                   <h3 className="fw-black text-uppercase lh-sm" style={{fontSize: '1.8rem'}}>{carta.regla}</h3>
                   {carta.regla.includes("Dedito") && <div className="badge bg-warning text-dark mt-2 animate-pulse">¡BOTÓN ACTIVADO!</div>}
                 </div>
 
-                {/* Footer (Jugador) */}
                 <div className="bg-light rounded p-2 border-top border-2">
                   <small className="text-muted text-uppercase fw-bold" style={{fontSize: '0.7rem'}}>TURNO DE</small>
                   <h4 className="fw-bold m-0 text-danger text-uppercase">{carta.jugador}</h4>
@@ -259,7 +268,6 @@ export const LaJefa = ({ volver }: Props) => {
               </div>
             </div>
           ) : (
-            /* Dorso de carta (Estado inicial) */
             <div className="mb-4 d-flex align-items-center justify-content-center text-white-50" 
                  style={{ 
                     width: '280px', height: '420px', borderRadius: '15px', 
@@ -300,18 +308,13 @@ export const LaJefa = ({ volver }: Props) => {
           )}
       </div>
 
-      {/* === BOTÓN FLOTANTE DEDITO === */}
-      {hayDeditoPendiente && (
+      {/* === BOTÓN FLOTANTE DEDITO (Se muestra si dueñoDedito no es null) === */}
+      {dueñoDedito && (
         <button 
           className="position-fixed bottom-0 end-0 m-4 rounded-circle shadow-lg fw-bold d-flex align-items-center justify-content-center animate-bounce"
-          style={{
-              width: '80px', height: '80px', zIndex: 1050, fontSize: '2rem',
-              background: '#ffd700', color: 'black', border: '4px solid white'
-          }}
+          style={{ width: '80px', height: '80px', zIndex: 1050, fontSize: '2rem', background: '#ffd700', color: 'black', border: '4px solid white' }}
           onClick={() => setShowModalDedito(true)}
-        >
-          👆
-        </button>
+        >👆</button>
       )}
 
       {/* === MODAL RESOLVER DEDITO === */}

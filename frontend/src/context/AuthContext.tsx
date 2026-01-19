@@ -6,9 +6,10 @@ import {
     onAuthStateChanged, 
     signInWithEmailAndPassword,
     createUserWithEmailAndPassword,
-    signInAnonymously // <--- 1. IMPORTAMOS ESTO
+    signInAnonymously 
 } from "firebase/auth";
 import { auth } from "../lib/firebase";
+import { api } from "../lib/api"; // 👈 1. IMPORTAMOS LA API
 
 interface AuthContextType {
   user: any;
@@ -17,7 +18,7 @@ interface AuthContextType {
   loginWithGoogle: () => Promise<void>;
   loginWithEmail: (email: string, pass: string) => Promise<void>;
   registerWithEmail: (email: string, pass: string) => Promise<void>;
-  loginAnonymously: () => Promise<void>; // <--- 2. AGREGAMOS A LA INTERFAZ
+  loginAnonymously: () => Promise<void>;
   logout: () => Promise<void>;
   updateSettings: (newSettings: any) => void;
 }
@@ -32,22 +33,32 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [settings, setSettings] = useState({ volumen: 50, vibracion: true });
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+    // Escuchamos cambios en la autenticación (Login, Logout, Recarga de página)
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       if (currentUser) {
-        // Lógica inteligente para el nombre:
-        // 1. Nombre real (Google)
-        // 2. Parte del mail (Email)
-        // 3. "Invitado" (Anónimo)
+        
+        // A. Lógica para determinar el nombre a mostrar
         let nombreDisplay = "Invitado";
         if (currentUser.displayName) nombreDisplay = currentUser.displayName;
         else if (currentUser.email) nombreDisplay = currentUser.email.split('@')[0];
 
+        // B. Guardamos en el estado local de la App (Contexto)
         setUser({
             uid: currentUser.uid,
             email: currentUser.email,
             nombre: nombreDisplay,
-            avatar: currentUser.photoURL || "🕵️" // Avatar por defecto para anónimos
+            avatar: currentUser.photoURL || "🕵️" 
         });
+
+        // C. 🚀 SINCRONIZAMOS CON EL BACKEND (BD)
+        // Esto crea el documento en Firebase si no existe, o lo actualiza.
+        try {
+            await api.sincronizarUsuario(currentUser);
+            console.log("✅ Usuario sincronizado con la Base de Datos");
+        } catch (error) {
+            console.error("❌ Error sincronizando usuario:", error);
+        }
+
       } else {
         setUser(null);
       }
@@ -69,7 +80,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     await createUserWithEmailAndPassword(auth, email, pass);
   };
 
-  // --- 3. FUNCIÓN PARA ENTRAR COMO ANÓNIMO ---
   const loginAnonymously = async () => {
     await signInAnonymously(auth);
   };

@@ -6,7 +6,7 @@ import { Chart as ChartJS, ArcElement, Tooltip, Legend, CategoryScale, LinearSca
 import { Pie, Bar } from 'react-chartjs-2';
 import '../App.css'; 
 import { AdService } from '../lib/AdMobUtils';
-import { useSubscription } from '../context/SubscriptionContext'; // 👈 1. IMPORTAR
+import { useSubscription } from '../context/SubscriptionContext'; 
 
 // Registramos los componentes de los gráficos
 ChartJS.register(ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement);
@@ -17,7 +17,9 @@ interface Props {
 }
 
 export const VotacionOnline = ({ datos, salir }: Props) => {
-  const { isPremium } = useSubscription(); // 👈 2. OBTENER STATUS
+  // 👇 CAMBIO 1: Usamos 'sinAnuncios' (Premium + Amigos)
+  const { sinAnuncios } = useSubscription(); 
+  
   const [sala, setSala] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [votando, setVotando] = useState(false);
@@ -38,8 +40,8 @@ export const VotacionOnline = ({ datos, salir }: Props) => {
 
   // --- SALIR CON ANUNCIO (PROTEGIDO) ---
   const handleSalir = async () => {
-      // 👈 3. SOLO SI NO ES PREMIUM
-      if (!isPremium) {
+      // 👈 CAMBIO 2: Usamos sinAnuncios
+      if (!sinAnuncios) {
           await AdService.mostrarIntersticial();
       }
       salir();

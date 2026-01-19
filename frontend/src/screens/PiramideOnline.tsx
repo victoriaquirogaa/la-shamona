@@ -4,7 +4,7 @@ import { api } from '../lib/api';
 import Swal from 'sweetalert2';
 import '../App.css'; 
 import { AdService } from '../lib/AdMobUtils';
-import { useSubscription } from '../context/SubscriptionContext'; // 👈 1. IMPORTAR
+import { useSubscription } from '../context/SubscriptionContext'; 
 
 interface Props {
   datos: { codigo: string; soyHost: boolean; nombre: string };
@@ -12,7 +12,8 @@ interface Props {
 }
 
 export const PiramideOnline = ({ datos, salir }: Props) => {
-  const { isPremium } = useSubscription(); // 👈 2. OBTENER STATUS
+  // 👇 CAMBIO 1: Usamos 'sinAnuncios' (Premium + Amigos)
+  const { sinAnuncios } = useSubscription(); 
   
   const [sala, setSala] = useState<any>(null);
   const [loading, setLoading] = useState(false);
@@ -29,7 +30,7 @@ export const PiramideOnline = ({ datos, salir }: Props) => {
     return () => clearInterval(intervalo);
   }, [datos.codigo]);
 
-  // --- EFECTO TRAGOS ---
+  // --- EFECTO TRAGOS (POPUP) ---
   useEffect(() => {
     const rev = sala?.datos_juego?.ultima_revelacion;
     if (rev && rev.id_accion !== ultimoIdMostrado) {
@@ -56,16 +57,16 @@ export const PiramideOnline = ({ datos, salir }: Props) => {
 
   // --- SALIR CON ANUNCIO (PROTEGIDO) ---
   const handleSalir = async () => {
-      // 👈 3. SOLO SI NO ES PREMIUM
-      if (!isPremium) {
+      // 👈 CAMBIO 2: Usamos sinAnuncios
+      if (!sinAnuncios) {
           await AdService.mostrarIntersticial();
       }
       salir();
   };
 
   const handleFinalizar = async () => {
-      // 👈 4. SOLO SI NO ES PREMIUM
-      if (!isPremium) {
+      // 👈 CAMBIO 3: Usamos sinAnuncios
+      if (!sinAnuncios) {
           await AdService.mostrarIntersticial();
       }
       await api.finalizarJuegoOnline(datos.codigo);
