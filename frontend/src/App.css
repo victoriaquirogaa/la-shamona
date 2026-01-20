@@ -177,3 +177,47 @@ body {
   transform: scale(1.02);
   box-shadow: 0 0 15px rgba(255,255,255,0.3);
 }
+
+/* --- RESPONSIVE MOBILE (Celulares verticales) --- */
+@media (max-width: 576px) {
+  
+  /* Achicar títulos gigantes */
+  .display-1 { font-size: 3.5rem !important; }
+  .display-2 { font-size: 3rem !important; }
+  .display-3 { font-size: 2.5rem !important; }
+  .display-4 { font-size: 2rem !important; }
+
+  /* Ajustar botones para que no ocupen tanto espacio */
+  .btn-neon-main, .btn-neon-secondary {
+    padding: 12px 15px !important; /* Menos relleno */
+    font-size: 0.95rem !important; /* Letra un poco más chica */
+  }
+
+  /* Ajustar los contenedores para que usen todo el ancho */
+  .container {
+    padding-left: 15px !important;
+    padding-right: 15px !important;
+  }
+
+  /* Títulos Neón */
+  .titulo-neon {
+    font-size: 2rem !important;
+  }
+}
+
+/* --- CLASE DE UTILIDAD PARA CARTAS ADAPTABLES --- */
+/* Usá esta clase en los <div> de las cartas en lugar de style={{width: 280px}} */
+.card-responsive {
+  width: 100%;
+  max-width: 320px; /* En escritorio no pasa de esto */
+  min-height: 450px; /* Altura base */
+  height: auto;
+  aspect-ratio: 2/3; /* Mantiene proporción de naipe siempre */
+}
+
+/* En celulares muy chicos, bajamos la altura mínima */
+@media (max-width: 380px) {
+  .card-responsive {
+    min-height: 380px;
+  }
+}

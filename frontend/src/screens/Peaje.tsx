@@ -2,11 +2,15 @@ import { useState, useEffect } from 'react';
 import { Container } from 'react-bootstrap';
 import { api } from '../lib/api';
 import '../App.css'; 
-import { AdService } from '../lib/AdMobUtils'; // 👈 USAMOS EL SERVICIO NUEVO
+import { AdService } from '../lib/AdMobUtils';
+import { useSubscription } from '../context/SubscriptionContext'; 
 
 interface Props { volver: () => void; }
 
 export const Peaje = ({ volver }: Props) => {
+  // 👇 CAMBIO: Usamos 'sinAnuncios' (Premium + Amigos)
+  const { sinAnuncios } = useSubscription(); 
+  
   const [sala, setSala] = useState<string | null>(null);
   const [carta, setCarta] = useState<number>(1);
   const [pos, setPos] = useState(0);
@@ -30,8 +34,12 @@ export const Peaje = ({ volver }: Props) => {
         
         // 🚨 DETECTAR SI PERDIÓ (Volvió al principio)
         if (d.nueva_posicion === 0 && pos > 0) {
-            console.log("💥 ¡Choque! Volviste al principio -> Publicidad");
-            await AdService.mostrarIntersticial();
+            console.log("💥 ¡Choque! Volviste al principio");
+            
+            // 👈 PUBLICIDAD AL CHOCAR (SOLO SI NO TIENE BENEFICIO)
+            if (!sinAnuncios) {
+                await AdService.mostrarIntersticial();
+            }
         }
 
         setCarta(d.carta_nueva);
@@ -44,13 +52,19 @@ export const Peaje = ({ volver }: Props) => {
 
   // --- SALIR CON ANUNCIO ---
   const handleSalir = async () => {
-      await AdService.mostrarIntersticial();
+      // 👈 PUBLICIDAD AL SALIR
+      if (!sinAnuncios) {
+          await AdService.mostrarIntersticial();
+      }
       volver();
   };
 
   // --- REINICIAR ---
   const handleReiniciar = async () => {
-      await AdService.mostrarIntersticial();
+      // 👈 PUBLICIDAD AL REINICIAR
+      if (!sinAnuncios) {
+          await AdService.mostrarIntersticial();
+      }
       window.location.reload();
   };
 

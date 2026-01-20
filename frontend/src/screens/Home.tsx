@@ -1,118 +1,237 @@
 import { useState } from 'react';
-import { Container, Badge, Modal, Form } from 'react-bootstrap';
-import { useAuth } from '../context/AuthContext'; 
-import '../App.css'; // 👈 Importante para los estilos neon
+import { Container, Modal, Form, Badge, Button, InputGroup } from 'react-bootstrap';
+import { useAuth } from '../context/AuthContext';
+import { useSubscription } from '../context/SubscriptionContext';
+import { useSound } from '../context/SoundContext';
+import { updateProfile } from 'firebase/auth'; // Import for updating Firebase profile
+import { auth } from '../lib/firebase'; // Import auth instance
+import { api } from '../lib/api';
+import '../App.css';
 
 interface Props {
-  irA: (pantalla: string) => void; 
+  irA: (pantalla: string) => void;
 }
 
 export const Home = ({ irA }: Props) => {
-  const { user, settings, updateSettings, logout } = useAuth();
+  const { user, logout } = useAuth();
+  const { isPremium, esAmigo, accesoVip } = useSubscription();
+  const { sonidoHabilitado, vibracionHabilitada, toggleSonido, toggleVibracion } = useSound();
+
   const [showConfig, setShowConfig] = useState(false);
+  
+  // States for name editing
+  const [editandoNombre, setEditandoNombre] = useState(false);
+  const [nuevoNombre, setNuevoNombre] = useState("");
+  const [guardandoNombre, setGuardandoNombre] = useState(false);
+
+  // Function to save the new name
+  const guardarNombre = async () => {
+    if (!nuevoNombre.trim() || !auth.currentUser) return;
+    setGuardandoNombre(true);
+    try {
+        // 1. Update in Firebase Auth
+        await updateProfile(auth.currentUser, { displayName: nuevoNombre });
+        
+        // 2. Update in your Backend Database
+        if (user?.uid) {
+            await api.actualizarNombreUsuario(user.uid, nuevoNombre);
+        }
+        
+        // 3. Force a reload to reflect changes (simple way)
+        window.location.reload(); 
+        
+    } catch (e) {
+        console.error(e);
+        alert("Error al cambiar nombre");
+    }
+    setGuardandoNombre(false);
+    setEditandoNombre(false);
+  };
+
+  const activarEdicion = () => {
+      setNuevoNombre(user?.nombre || "");
+      setEditandoNombre(true);
+  };
 
   return (
-    <Container className="d-flex flex-column min-vh-100 p-4">
+    <Container className="d-flex flex-column min-vh-100 p-4 justify-content-center align-items-center text-center">
       
-      {/* --- HEADER --- */}
-      <div className="d-flex justify-content-between align-items-center mb-5 animate-in fade-in">
-        <div>
-            {/* Título con efecto neón */}
-            <h2 className="titulo-neon m-0 lh-1">VIAJERO</h2>
-            <small className="text-white-50 fst-italic" style={{letterSpacing: '1px'}}>Tu compañero de gira 🚌</small>
-        </div>
-        
-        {/* --- PERFIL (Pill Style) --- */}
-        <div 
-            className="profile-pill d-flex align-items-center ps-3 pe-1 py-1" 
-            style={{cursor: 'pointer'}}
-            onClick={() => setShowConfig(true)}
-        >
-            <span className="fw-bold me-2 small text-info text-uppercase">{user?.nombre}</span>
-            <div 
-              className="rounded-circle overflow-hidden border border-info d-flex align-items-center justify-content-center bg-dark" 
-              style={{width: '38px', height: '38px'}}
+      {/* --- HEADER (Perfil + Tienda) --- */}
+      <div className="position-absolute top-0 end-0 m-3 d-flex gap-2 align-items-center" style={{ zIndex: 10 }}>
+           
+           {/* BOTÓN TIENDA */}
+           <button 
+                className={`btn btn-sm rounded-pill fw-bold border-0 animate-pulse d-flex align-items-center gap-1 ${accesoVip ? 'bg-warning text-dark' : 'btn-outline-warning'}`}
+                style={{ height: '38px', paddingLeft: '12px', paddingRight: '12px' }} 
+                onClick={() => irA('store')}
             >
-                {user?.avatar?.startsWith('http') ? (
-                    <img src={user.avatar} alt="User" style={{width: '100%', height: '100%', objectFit: 'cover'}} />
+                {accesoVip ? '👑 VIP' : '💎 TIENDA'}
+            </button>
+
+           {/* BOTÓN PERFIL (Avatar) */}
+           <div onClick={() => setShowConfig(true)} style={{cursor: 'pointer'}}>
+                {user?.photoURL ? (
+                    <img 
+                        src={user.photoURL} 
+                        alt="Perfil" 
+                        className="rounded-circle border border-2 border-info shadow"
+                        style={{width: '40px', height: '40px', objectFit: 'cover'}} 
+                    />
                 ) : (
-                    <span style={{fontSize: '1.2rem'}}>{user?.avatar || '😎'}</span>
+                    <div className="btn btn-dark rounded-circle border border-secondary d-flex align-items-center justify-content-center" 
+                         style={{width: '40px', height: '40px'}}>
+                        👤
+                    </div>
                 )}
-            </div>
-        </div>
+           </div>
       </div>
 
-      {/* --- MENÚ PRINCIPAL --- */}
-      <div className="flex-grow-1 d-flex flex-column justify-content-center align-items-center gap-4 w-100">
+      {/* --- LOGO PRINCIPAL --- */}
+      <div className="mb-5 animate-in zoom-in">
+        <h1 className="display-1 fw-black titulo-neon m-0 lh-1" style={{ letterSpacing: '-2px' }}>
+          VIAJERO
+        </h1>
+        <p className="text-white-50 fs-5 ls-2 fst-italic">Tu compañero de gira 🍻</p>
+      </div>
+      
+      {/* --- MENÚ DE JUEGOS --- */}
+      <div className="d-grid gap-3 w-100 animate-in slide-up" style={{maxWidth: '350px'}}>
         
-        {/* 1. ONLINE (Destacado) */}
+        {/* 1. ONLINE */}
         <button 
-            className="btn-neon-main py-4 position-relative"
-            style={{maxWidth: '350px'}} 
+            className="btn-neon-secondary py-3 fs-5 fw-bold position-relative" 
             onClick={() => irA('menu-online')}
         >
-            🌎 JUGAR ONLINE
-            <Badge bg="danger" className="position-absolute top-0 start-100 translate-middle badge rounded-pill">
-              NUEVO
+            🌐 JUGAR ONLINE
+            <Badge bg="danger" className="position-absolute top-0 start-100 translate-middle badge rounded-pill border border-dark">
+               NUEVO
             </Badge>
-            <div className="small fw-normal text-white-50 mt-1" style={{fontSize: '0.75rem', textTransform: 'none'}}>
-              Conectate con amigos a distancia
-            </div>
         </button>
         
         {/* 2. OFFLINE */}
         <button 
-            className="btn-neon-secondary py-3"
-            style={{maxWidth: '350px'}} 
+            className="btn-neon-main py-3 fs-5 fw-bold" 
             onClick={() => irA('menu-offline')} 
         >
-            📱 JUEGOS OFFLINE
-            <div className="small fw-normal text-white-50 mt-1" style={{fontSize: '0.75rem', textTransform: 'none'}}>
-               Para jugar en la previa, acá y ahora
-            </div>
+            📱 JUGAR EN ESTE CELU
         </button>
 
-        {/* 3. TRAGOS (Deshabilitado pero fachero) */}
-        <div className="w-100 text-center opacity-50" style={{maxWidth: '350px'}}>
-            <button className="btn-neon-secondary w-100 py-3" style={{borderColor: '#444', color: '#888', cursor: 'not-allowed'}}>
-                🍹 RECETAS DE TRAGOS
+        {/* 3. TRAGOS (Próximamente) */}
+        <div className="opacity-50 mt-2">
+            <button className="btn btn-outline-secondary w-100 py-2 border-dashed" style={{cursor: 'not-allowed'}}>
+                🍹 Recetas de Tragos (Pronto)
             </button>
-            <small className="text-muted mt-1 d-block">Próximamente...</small>
         </div>
 
       </div>
       
-      <p className="text-center text-secondary small mt-4 opacity-25">v2.3 - Córdoba</p>
+      <p className="text-secondary small mt-5 opacity-25">v2.4 - Córdoba</p>
 
-      {/* --- MODAL CONFIGURACIÓN (Estilo Dark) --- */}
-      <Modal 
-        show={showConfig} 
-        onHide={() => setShowConfig(false)} 
-        centered 
-        dialogClassName="modal-glass" // Clase mágica del CSS
-      >
-        <Modal.Header closeButton closeVariant="white">
-            <Modal.Title className="text-info fw-bold">PERFIL DE JUGADOR</Modal.Title>
+      {/* --- MODAL DE PERFIL (Rediseñado con Edición) --- */}
+      <Modal show={showConfig} onHide={() => setShowConfig(false)} centered dialogClassName="modal-glass">
+        <Modal.Header closeButton closeVariant="white" className="border-0">
+            <Modal.Title className="text-info fw-bold w-100 text-center">MI PERFIL</Modal.Title>
         </Modal.Header>
-        <Modal.Body>
-            <div className="text-center mb-4">
-                <div className="display-1 mb-2">{user?.avatar || '😎'}</div>
-                <h3 className="fw-bold text-white">{user?.nombre}</h3>
-                <button className="btn btn-outline-danger btn-sm rounded-pill mt-2 px-4" onClick={logout}>
-                    Cerrar Sesión
-                </button>
+        
+        <Modal.Body className="text-center px-4 pb-4">
+            
+            {/* 1. FOTO GRANDE */}
+            <div className="position-relative d-inline-block mb-3">
+                {user?.photoURL ? (
+                    <img 
+                        src={user.photoURL} 
+                        alt="Avatar" 
+                        className="rounded-circle border border-2 border-white shadow-lg"
+                        style={{width: '90px', height: '90px', objectFit: 'cover'}}
+                    />
+                ) : (
+                    <div className="rounded-circle bg-secondary d-flex align-items-center justify-content-center border border-2 border-white mx-auto" 
+                         style={{width: '90px', height: '90px', fontSize: '2.5rem'}}>
+                        👤
+                    </div>
+                )}
+                {/* Coronita si es VIP */}
+                {accesoVip && (
+                    <div className="position-absolute top-0 end-0 translate-middle badge rounded-pill bg-warning border border-dark text-dark" style={{fontSize: '1.2rem'}}>
+                        👑
+                    </div>
+                )}
             </div>
-            
-            <hr className="border-secondary opacity-50" />
-            
-            <Form.Group className="mb-3">
-                <Form.Label className="text-info small fw-bold">VOLUMEN DE EFECTOS ({settings.volumen}%)</Form.Label>
-                <Form.Range 
-                    value={settings.volumen} 
-                    onChange={(e) => updateSettings({ volumen: parseInt(e.target.value) })}
-                    style={{ accentColor: 'var(--neon-cyan)' }} 
-                />
-            </Form.Group>
+
+            {/* ✏️ ZONA DE NOMBRE EDITABLE */}
+            {editandoNombre ? (
+                <InputGroup className="mb-3 justify-content-center">
+                    <Form.Control 
+                        autoFocus
+                        value={nuevoNombre}
+                        onChange={(e) => setNuevoNombre(e.target.value)}
+                        className="text-center bg-dark text-white border-info"
+                        style={{maxWidth: '200px'}}
+                    />
+                    <Button variant="success" onClick={guardarNombre} disabled={guardandoNombre}>
+                        {guardandoNombre ? '...' : '💾'}
+                    </Button>
+                </InputGroup>
+            ) : (
+                <div className="d-flex justify-content-center align-items-center gap-2 mb-1">
+                    <h4 className="text-white fw-bold m-0">{user?.nombre || "Viajero Anónimo"}</h4>
+                    <span style={{cursor:'pointer', opacity: 0.7}} onClick={activarEdicion}>✏️</span>
+                </div>
+            )}
+
+            <p className="text-white-50 small mb-4 text-truncate" style={{maxWidth: '250px', margin: '0 auto'}}>
+                {user?.email || "Sin email registrado"}
+            </p>
+
+            {/* 2. ESTADO SUSCRIPCIÓN */}
+            <div className="card-shamona p-3 mb-4 border-secondary bg-black bg-opacity-25">
+                <small className="text-white-50 text-uppercase fw-bold ls-2" style={{fontSize: '0.7rem'}}>ESTADO ACTUAL</small>
+                <div className="mt-2">
+                    {isPremium ? (
+                        <span className="badge bg-warning text-dark fs-6 py-2 px-3">👑 PREMIUM MEMBER</span>
+                    ) : esAmigo ? (
+                        <span className="badge bg-info text-dark fs-6 py-2 px-3">🤝 ACCESO AMIGO VIP</span>
+                    ) : (
+                        <span className="badge bg-secondary text-white fs-6 py-2 px-3">GRATUITO</span>
+                    )}
+                </div>
+                {/* Botón para ir a tienda si no es VIP */}
+                {!accesoVip && (
+                    <button className="btn btn-sm btn-link text-warning text-decoration-none mt-2" onClick={() => { setShowConfig(false); irA('store'); }}>
+                        💎 Conseguir Premium
+                    </button>
+                )}
+            </div>
+
+            {/* 3. CONFIGURACIÓN SONIDO */}
+            <div className="text-start mb-4">
+                <p className="text-white-50 small fw-bold mb-2 ms-1 text-uppercase">Preferencias</p>
+                
+                <div className="d-flex justify-content-between align-items-center p-3 rounded bg-dark bg-opacity-50 mb-2 border border-secondary">
+                    <span className="text-white d-flex align-items-center gap-2">🔊 Efectos de Sonido</span>
+                    <Form.Check 
+                        type="switch"
+                        checked={sonidoHabilitado}
+                        onChange={toggleSonido}
+                        style={{ transform: 'scale(1.3)' }}
+                    />
+                </div>
+
+                <div className="d-flex justify-content-between align-items-center p-3 rounded bg-dark bg-opacity-50 border border-secondary">
+                    <span className="text-white d-flex align-items-center gap-2">📳 Vibración</span>
+                    <Form.Check 
+                        type="switch"
+                        checked={vibracionHabilitada}
+                        onChange={toggleVibracion}
+                        style={{ transform: 'scale(1.3)' }}
+                    />
+                </div>
+            </div>
+
+            <button className="btn btn-outline-danger w-100 rounded-pill py-2" onClick={logout}>
+                Cerrar Sesión
+            </button>
+
         </Modal.Body>
       </Modal>
 

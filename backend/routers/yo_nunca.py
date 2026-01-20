@@ -1,12 +1,15 @@
 from fastapi import APIRouter, HTTPException
 from database import db
 import random
-from models import JuegoCarta
+from models import JuegoCarta 
 
 router = APIRouter()
 
+# Definimos cuáles categorías son de pago
+CATEGORIAS_VIP = ["hot"]
+
 @router.get("/{categoria}")
-def sacar_carta(categoria: str):
+def sacar_carta(categoria: str, es_premium: bool = False): # 👈 Agregamos flag
     
     # 1. Definimos los nombres reales de los documentos en Firebase
     mazos_validos = {
@@ -16,6 +19,13 @@ def sacar_carta(categoria: str):
 
     # --- 🔀 CASO MIX: JUNTAR TODO ---
     if categoria == "mix":
+        
+        # 🛑 SEGURIDAD MIX: 
+        # En Yo Nunca, el Mix es exclusivo VIP (porque incluye Hot).
+        # Si no paga, NO entra (Frontend ya lo sabe, pero Backend asegura).
+        if not es_premium:
+            raise HTTPException(status_code=403, detail="El Mix de Yo Nunca es exclusivo Premium.")
+
         todas_las_frases = []
         
         # Recorremos todos los mazos conocidos (gratis y hot)
@@ -42,6 +52,10 @@ def sacar_carta(categoria: str):
     # --- 📂 CASO NORMAL: UNA SOLA CATEGORÍA ---
     if categoria not in mazos_validos:
         raise HTTPException(status_code=400, detail="Categoría no válida. Usá: gratis, hot o mix")
+
+    # 🛑 SEGURIDAD INDIVIDUAL:
+    if categoria in CATEGORIAS_VIP and not es_premium:
+        raise HTTPException(status_code=403, detail="Categoría exclusiva Premium.")
 
     nombre_documento = mazos_validos[categoria]
 

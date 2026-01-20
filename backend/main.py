@@ -1,49 +1,40 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-# Importamos las piezas nuevas
-from routers import yo_nunca, votacion, preguntas, la_puta, peaje, piramide, impostor, online # <--- AGREGAR online
-# from routers import admin (cuando lo crees)
+# Importamos tus routers
+from routers import yo_nunca, votacion, preguntas, la_puta, peaje, piramide, impostor, online, usuarios 
 
 app = FastAPI()
 
-# --- CORS (Seguridad) ---
+# --- CORS (CONFIGURACIÓN CORRECTA) ---
+# 🚨 IMPORTANTE: Si allow_credentials es True, NO podés usar ["*"].
+# Tenés que poner las URLs exactas de tu frontend.
+origins = [
+    "http://localhost:5173",    # Frontend accediendo como localhost
+    "http://127.0.0.1:5173",    # Frontend accediendo como IP
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    # El truco: Usar regex para permitir CUALQUIER origen http/https
+    allow_origin_regex="https?://.*", 
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 # --- CONECTAR LOS ROUTERS ---
-
-# 1. Juego Yo Nunca (Rutas: /juegos/yo-nunca/...)
 app.include_router(yo_nunca.router, prefix="/juegos/yo-nunca", tags=["Yo Nunca"])
-
-# 2. Juego La Puta (Rutas: /juegos/la-puta/sacar-carta)
 app.include_router(la_puta.router, prefix="/juegos/la-puta", tags=["La Puta"])
-
-# 3. Juego El impostor (Rutas: /juegos/impostor)
-app.include_router(impostor.router, prefix="/impostor", tags=["impostor"]) # <--- 2. ENCHUFAR
-
-# 4. Juego Peaje (Rutas: /juegos/peaje)
+app.include_router(impostor.router, prefix="/impostor", tags=["impostor"]) 
 app.include_router(peaje.router, prefix="/juegos/peaje", tags=["Peaje"])
-
-# 5. Juego Piramide (Rutas: /juegos/piramide)
 app.include_router(piramide.router, prefix="/juegos/piramide", tags=["Piramide"])
-
-# 6. Juego Quien es mas probable que? (/juegos/votacion)
 app.include_router(votacion.router, prefix="/juegos/votacion", tags=["Votacion"])
-
-# 7. Juego de Preguntas (/juegos/preguntas)
 app.include_router(preguntas.router, prefix="/juegos/preguntas", tags=["Preguntas"])
-
-# DEJARLO ASÍ (Con /juegos/online):
 app.include_router(online.router, prefix="/juegos/online", tags=["Modo Online"])
 
-# 3. Admin (Futuro)
-# app.include_router(admin.router, prefix="/admin", tags=["Admin"])
+# USUARIOS
+app.include_router(usuarios.router, prefix="/usuarios", tags=["usuarios"]) 
 
 @app.get("/")
 def home():
-    return {"estado": "Backend Modular Operativo 🚀"}
+    return {"estado": "Backend Modular Operativo 🚀", "cors": "FIXED"}

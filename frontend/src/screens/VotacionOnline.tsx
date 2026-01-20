@@ -5,7 +5,8 @@ import { api } from '../lib/api';
 import { Chart as ChartJS, ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement } from 'chart.js';
 import { Pie, Bar } from 'react-chartjs-2';
 import '../App.css'; 
-import { AdService } from '../lib/AdMobUtils'; // 👈 USAMOS EL SERVICIO NUEVO
+import { AdService } from '../lib/AdMobUtils';
+import { useSubscription } from '../context/SubscriptionContext'; 
 
 // Registramos los componentes de los gráficos
 ChartJS.register(ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement);
@@ -16,6 +17,9 @@ interface Props {
 }
 
 export const VotacionOnline = ({ datos, salir }: Props) => {
+  // 👇 CAMBIO 1: Usamos 'sinAnuncios' (Premium + Amigos)
+  const { sinAnuncios } = useSubscription(); 
+  
   const [sala, setSala] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [votando, setVotando] = useState(false);
@@ -34,9 +38,12 @@ export const VotacionOnline = ({ datos, salir }: Props) => {
     return () => clearInterval(intervalo);
   }, [datos.codigo]);
 
-  // --- SALIR CON ANUNCIO ---
+  // --- SALIR CON ANUNCIO (PROTEGIDO) ---
   const handleSalir = async () => {
-      await AdService.mostrarIntersticial();
+      // 👈 CAMBIO 2: Usamos sinAnuncios
+      if (!sinAnuncios) {
+          await AdService.mostrarIntersticial();
+      }
       salir();
   };
 

@@ -3,6 +3,7 @@ from pydantic import BaseModel
 from database import db
 from datetime import datetime, timedelta
 
+# 1. Create Router
 router = APIRouter()
 
 # --- MODELOS ---
@@ -12,6 +13,9 @@ class RegistroInput(BaseModel):
 class CanjeInput(BaseModel):
     device_id: str
     codigo: str
+
+class NombreUpdate(BaseModel):
+    nombre: str
 
 # --- 1. REGISTRO DE USUARIO NUEVO ---
 @router.post("/registrar")
@@ -34,53 +38,85 @@ def registrar_usuario(datos: RegistroInput):
 # --- 2. CANJE DE CÓDIGOS (Desde BD) ---
 @router.post("/canjear-codigo")
 def canjear_codigo(datos: CanjeInput):
-    # Limpieza: " vicky " -> "VICKY"
+    # 1. Normalizamos el código
     codigo_limpio = datos.codigo.strip().upper()
     
-    # A. Buscamos el código en Firestore
-    cod_ref = db.collection('codigos_promo').document(codigo_limpio)
-    cod_doc = cod_ref.get()
-    
-    if not cod_doc.exists:
-        raise HTTPException(status_code=404, detail="Código inválido.")
-    
-    info_codigo = cod_doc.to_dict()
-    
-    # B. Validaciones de Stock y Estado
+    print(f"🔍 Canjeando: {codigo_limpio} para User: {datos.device_id}")
+
+    # 2. BUSCAR EL CÓDIGO
+    doc_ref = db.collection('codigos_promocionales').document(codigo_limpio)
+    doc = doc_ref.get()
+
+    # ERROR 404: El código ni siquiera existe en la base de datos
+    if not doc.exists:
+        raise HTTPException(status_code=404, detail="El código no existe. Revisá si lo escribiste bien.")
+
+    info_codigo = doc.to_dict()
+
+    # 3. VALIDACIONES DE SEGURIDAD
+
+    # A. ¿Está activo manualmente?
     if not info_codigo.get('activo', True):
-        raise HTTPException(status_code=400, detail="Este código fue desactivado.")
-        
-    usos = info_codigo.get('usos_restantes', 0)
-    if usos == 0: 
-        raise HTTPException(status_code=400, detail="Este código ya se agotó.")
+        raise HTTPException(status_code=400, detail="Este código fue desactivado manualmente.")
 
-    # C. Calcular Vencimiento (Si es temporal)
-    # En la BD, el código puede tener "dias_duracion": 7. Si no tiene, es eterno.
-    dias = info_codigo.get('dias_duracion', None) 
-    fecha_vencimiento = None
-    
-    mensaje_exito = "¡Código Amigo activado para siempre!"
-    
-    if dias:
-        # Si es un pase de vacaciones, sumamos los días a HOY
-        fecha_obj = datetime.now() + timedelta(days=dias)
-        fecha_vencimiento = fecha_obj.isoformat()
-        mensaje_exito = f"¡Pack activado! Válido por {dias} días."
+    # B. ¿El usuario YA lo usó? (Para que no sume días infinitos)
+    usados = info_codigo.get('usado_por', [])
+    if datos.device_id in usados:
+        # ERROR 400: Ya lo usó antes.
+        raise HTTPException(status_code=400, detail="¡Ya canjeaste este código! No seas codicioso 🐀")
 
-    # D. Actualizar al Usuario
+    # C. ¿QUEDAN USOS DISPONIBLES? (STOCK)
+    stock = info_codigo.get('usos_restantes')
+    
+    if stock is not None and stock <= 0:
+        raise HTTPException(status_code=400, detail="¡Uh! Este código ya alcanzó el límite de usos 😢")
+
+    # 4. TODO OK -> PROCESAR PREMIO
+    dias_a_sumar = info_codigo.get('dias_premio', 0)
+    
+    ahora = datetime.now()
     user_ref = db.collection('usuarios').document(datos.device_id)
-    updates = {
-        "es_amigo": True,
-        "vencimiento_codigo": fecha_vencimiento,
-        "codigo_usado": codigo_limpio
-    }
-    user_ref.set(updates, merge=True)
+    user_doc = user_ref.get()
+    
+    nueva_fecha_vencimiento = ahora + timedelta(days=dias_a_sumar)
 
-    # E. Descontar Stock del Código (Si no es infinito/-1)
-    if usos > 0:
-        cod_ref.update({"usos_restantes": usos - 1})
+    if user_doc.exists:
+        user_data = user_doc.to_dict()
+        vencimiento_actual_str = user_data.get('vencimiento_codigo')
+        if vencimiento_actual_str:
+            try:
+                vencimiento_actual = datetime.fromisoformat(vencimiento_actual_str)
+                if vencimiento_actual > ahora:
+                    nueva_fecha_vencimiento = vencimiento_actual + timedelta(days=dias_a_sumar)
+            except:
+                pass
 
-    return {"mensaje": mensaje_exito, "valido_hasta": fecha_vencimiento}
+    # 5. GUARDAR Y DESCONTAR STOCK
+    try:
+        # A. Actualizar Usuario
+        user_ref.set({
+            "es_amigo": True,
+            "vencimiento_codigo": nueva_fecha_vencimiento.isoformat()
+        }, merge=True)
+
+        # B. Actualizar Código (Agregar usuario a lista Y restar 1 al stock)
+        updates = {
+            "usado_por": usados + [datos.device_id]
+        }
+        
+        # Si tenía stock limitado, restamos 1
+        if stock is not None:
+            updates["usos_restantes"] = stock - 1
+
+        doc_ref.update(updates)
+
+        return {
+            "mensaje": f"¡Éxito! Tenés VIP por {dias_a_sumar} días. Quedan {stock - 1 if stock else 'infinitos'} usos.",
+            "nuevo_vencimiento": nueva_fecha_vencimiento.isoformat()
+        }
+    except Exception as e:
+        print(f"Error critico DB: {e}")
+        raise HTTPException(status_code=500, detail="Error interno al procesar el premio.")
 
 # --- 3. WEBHOOK REVENUECAT (Pagos Reales) ---
 @router.post("/webhook-revenuecat")
@@ -112,52 +148,83 @@ async def recibir_aviso_pago(request: Request):
 def consultar_permisos(device_id: str):
     doc = db.collection('usuarios').document(device_id).get()
     
-    # Valores por defecto (Usuario Gratis)
-    puede_crear_premium = False
-    ver_anuncios = True 
+    es_premium_real = False   # El que puso tarjeta
+    es_amigo_activo = False   # El que usó código
+    es_amigo_flag = False     # Guardamos el flag crudo para el frontend
     
     if doc.exists:
         data = doc.to_dict()
-        es_pago = data.get("es_premium", False)
-        es_amigo = data.get("es_amigo", False)
-        vencimiento = data.get("vencimiento_codigo") # String ISO o None
+        es_premium_real = data.get("es_premium", False)
         
-        # LÓGICA 1: ¿Tiene funciones Premium?
-        # A. Si pagó, siempre SÍ.
-        if es_pago:
-            puede_crear_premium = True
-        
-        # B. Si es amigo, verificamos fecha (si tiene)
-        elif es_amigo:
+        # Validar si el amigo sigue vigente
+        es_amigo_flag = data.get("es_amigo", False)
+        vencimiento = data.get("vencimiento_codigo") 
+
+        if es_amigo_flag:
             if vencimiento:
-                # Chequear si no se venció
-                ahora = datetime.now()
-                fecha_limite = datetime.fromisoformat(vencimiento)
-                if ahora < fecha_limite:
-                    puede_crear_premium = True # Todavía vigente
-                else:
-                    # Se venció, volvemos a false en memoria (y podrías actualizar BD)
-                    puede_crear_premium = False 
+                try:
+                    fecha_limite = datetime.fromisoformat(vencimiento)
+                    if datetime.now() < fecha_limite:
+                        es_amigo_activo = True
+                except:
+                    es_amigo_activo = False
             else:
-                # Si no tiene vencimiento, es amigo eterno
-                puede_crear_premium = True
-        
-        # LÓGICA 2: ¿Ve Anuncios? (Tu regla de oro)
-        if es_pago:
-            ver_anuncios = False # Pagó -> No anuncios
-        else:
-            ver_anuncios = True  # Gratis o Amigo -> SÍ anuncios
-            
+                es_amigo_activo = True 
+
+    # --- LÓGICA DE PODERES ---
+
+    # 1. ¿Quién tiene acceso a Categorías VIP? (Premium + Amigos)
+    acceso_vip = es_premium_real or es_amigo_activo
+
+    # 2. ¿Quién se salva de los anuncios molestos al salir/cambiar turno? (Premium + Amigos)
+    sin_anuncios = es_premium_real or es_amigo_activo
+
+    # 3. ¿Quién tiene el Mix desbloqueado SIN ver video? (SOLO PREMIUM REAL)
+    # El amigo (False) tendrá que ver video.
+    mix_sin_video = es_premium_real
+
     return {
-        "puede_crear_premium": puede_crear_premium,
-        "ver_anuncios": ver_anuncios
+        "acceso_vip": acceso_vip,
+        "sin_anuncios": sin_anuncios,
+        "mix_sin_video": mix_sin_video,
+        "es_premium": es_premium_real,
+        "es_amigo": es_amigo_activo  # <--- ✅ CORRECTO (Termina con 'o')
     }
 
 # --- AUXILIAR PARA IMPORTAR EN OTROS ARCHIVOS ---
 def verificar_acceso_usuario(device_id: str):
     """
     Función rápida para usar dentro de impostor.py, votacion.py, etc.
-    Devuelve True si tiene permiso de crear/jugar premium.
+    Devuelve True si tiene permiso VIP.
     """
     permisos = consultar_permisos(device_id)
-    return permisos['puede_crear_premium']
+    return permisos['acceso_vip'] # FIXED: changed 'puede_crear_premium' to 'acceso_vip'
+
+# --- 5. ACTUALIZAR NOMBRE (FIXED) ---
+@router.put("/{uid}/nombre") # FIXED: removed /usuarios prefix and @app -> @router
+def actualizar_nombre_usuario(uid: str, datos: NombreUpdate):
+    try:
+        # Referencia al documento del usuario
+        doc_ref = db.collection('usuarios').document(uid)
+        
+        # Verificamos si existe antes de actualizar
+        doc = doc_ref.get()
+        
+        if doc.exists:
+            # Si existe, solo actualizamos el nombre
+            doc_ref.update({"nombre": datos.nombre})
+        else:
+            # 🚨 SALVAVIDAS: Si el usuario no existía (porque falló el sync antes),
+            # lo creamos ahora mismo con el nombre nuevo.
+            doc_ref.set({
+                "uid": uid,
+                "nombre": datos.nombre,
+                "es_premium": False, # Valores por defecto para que no rompa nada
+                "es_amigo": False
+            })
+            
+        return {"status": "ok", "mensaje": "Nombre actualizado"}
+        
+    except Exception as e:
+        print(f"Error actualizando nombre: {e}")
+        return {"error": str(e)}, 500
