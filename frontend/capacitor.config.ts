@@ -1,7 +1,7 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'com.victoria.elviajero',
+  appId: 'com.elviajero.app',
   appName: 'El Viajero',
   webDir: 'dist'
 };
