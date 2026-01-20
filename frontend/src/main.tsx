@@ -6,16 +6,13 @@ import 'bootstrap/dist/css/bootstrap.min.css';
 // 👇 IMPORTAMOS LOS PROVEEDORES DE CONTEXTO
 import { AuthProvider } from './context/AuthContext';
 import { SubscriptionProvider } from './context/SubscriptionContext';
-import { SoundProvider } from './context/SoundContext';
+import { SoundProvider } from './context/SoundContext'; // 👈 Importar
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    {/* 1. Auth: Maneja el usuario de Google */}
     <AuthProvider>
-      {/* 2. Subscription: Maneja VIP y Amigos */}
       <SubscriptionProvider>
-        {/* 3. Sound: Maneja Sonido y Vibración */}
-        <SoundProvider>
+        <SoundProvider> {/* 👈 AGREGAR ESTO ACÁ */}
             <App />
         </SoundProvider>
       </SubscriptionProvider>
