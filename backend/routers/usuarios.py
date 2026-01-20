@@ -187,8 +187,8 @@ def consultar_permisos(device_id: str):
         "acceso_vip": acceso_vip,
         "sin_anuncios": sin_anuncios,
         "mix_sin_video": mix_sin_video,
-        "es_premium": es_premium_real, # Devuelve si pagó
-        "es_amigo": es_amigo_active      # Devuelve si es amigo activo (FIXED TYPO: es_amigo_activo)
+        "es_premium": es_premium_real,
+        "es_amigo": es_amigo_activo  # <--- ✅ CORRECTO (Termina con 'o')
     }
 
 # --- AUXILIAR PARA IMPORTAR EN OTROS ARCHIVOS ---

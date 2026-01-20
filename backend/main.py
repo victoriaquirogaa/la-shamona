@@ -15,7 +15,8 @@ origins = [
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,      # Solo permitimos estos dos
+    # El truco: Usar regex para permitir CUALQUIER origen http/https
+    allow_origin_regex="https?://.*", 
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

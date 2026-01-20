@@ -2,35 +2,29 @@ export const API_URL = "http://127.0.0.1:8000";
 
 // 🚨 FUNCIÓN ESPÍA: Atrapa el error y te lo muestra en la cara
 // 🚨 FUNCIÓN ESPÍA (Versión Relajada)
+// En src/lib/api.ts
+
 const safeFetch = async (endpoint: string, options?: RequestInit) => {
   const fullUrl = `${API_URL}${endpoint}`;
   try {
-    // console.log(`Intentando conectar a: ${fullUrl}`); // Comentamos para limpiar consola
     const response = await fetch(fullUrl, options);
     
     if (!response.ok) {
-        // Si es un error 404 (No encontrado), a veces es normal (ej. usuario nuevo), no alertamos.
-        if (response.status === 404) {
-            console.warn(`404 en ${endpoint} - Probablemente normal.`);
-            throw new Error("404 Not Found");
-        }
-        
-        const errorBody = await response.text(); 
-        console.error("Backend Error:", errorBody);
-        throw new Error(`Error del Servidor: ${response.status}`);
+        if (response.status === 404) return response; // Ignoramos 404
+        throw new Error(`Error Backend: ${response.status}`);
     }
     return response;
+
   } catch (error: any) {
     console.error("Fetch Error:", error);
-
-    // 🛑 FILTRO DE ALERTAS:
-    // Solo mostramos alerta si NO es un error de cancelación o aborto (común en React)
-    if (error.name !== 'AbortError' && error.message !== "404 Not Found") {
-        // Opcional: Podés comentar este alert también si querés paz total
-        // alert(`⛔ ERROR DE CONEXIÓN...`); 
-        console.log("Error de conexión ignorado visualmente para no molestar.");
-    }
-    throw error;
+    
+    // 👇👇👇 ¡ESTA ES LA CLAVE! 👇👇👇
+    // BORRÁ CUALQUIER LÍNEA QUE DIGA "alert(...)" ACÁ.
+    // Solo dejá el console.log o nada.
+    
+    console.log("Error de conexión silencioso (para no molestar al usuario).");
+    
+    throw error; // Lanzamos el error para que React lo maneje internamente, pero SIN CARTEL.
   }
 };
 
@@ -108,9 +102,10 @@ export const api = {
     return await response.json();
   },
 
-  getPermisosUsuario: async () => {
-    const deviceId = getDeviceId();
-    const response = await safeFetch(`/usuarios/${deviceId}/permisos`);
+  getPermisosUsuario: async (uidOpcional?: string) => {
+    const idParaBuscar = uidOpcional || getDeviceId(); // 👈 LÓGICA CLAVE
+    console.log("🔍 Buscando permisos para:", idParaBuscar); // Para depurar
+    const response = await safeFetch(`/usuarios/${idParaBuscar}/permisos`);
     return await response.json();
   },
 

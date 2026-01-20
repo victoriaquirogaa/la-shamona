@@ -39,32 +39,34 @@ export const SubscriptionProvider = ({ children }: { children: ReactNode }) => {
   const [loading, setLoading] = useState(true);
 
   // 2. FUNCIÓN PRINCIPAL: CONSULTAR AL BACKEND
+  // En src/context/SubscriptionContext.tsx
+
+  // 2. FUNCIÓN PRINCIPAL: CONSULTAR AL BACKEND
   const checkSubscription = async () => {
     try {
-      // A. Obtenemos permisos calculados (Vip, Anuncios, etc)
-      const perms = await api.getPermisosUsuario(); 
+      // 👇 ACÁ ESTÁ EL CAMBIO MÁGICO
+      // Si existe 'user' (logueado), usamos su UID. Si no, pasamos undefined y la API usa el device_id.
+      const idUsuario = user?.uid; 
       
+      const perms = await api.getPermisosUsuario(idUsuario); 
+      
+      console.log("🎟️ Permisos recibidos:", perms); // Mirá esto en la consola (F12)
+
       setSinAnuncios(perms.sin_anuncios);
       setMixSinVideo(perms.mix_sin_video);
       setAccesoVip(perms.acceso_vip);
       
-      // B. Determinamos si es Premium vs Amigo
-      // Si el backend devuelve 'es_premium' explícito, lo usamos. Si no, asumimos por los permisos.
-      // (Ajustá esto según tu backend response, por ahora lo hago seguro)
       const premiumReal = perms.es_premium || false; 
       setIsPremium(premiumReal);
 
-      // Si tiene acceso VIP pero NO es premium pagando, entonces es Amigo
       if (perms.acceso_vip && !premiumReal) {
           setEsAmigo(true);
       } else {
-          // También podemos chequear explícitamente si el backend manda 'es_amigo'
           setEsAmigo(perms.es_amigo || false);
       }
 
     } catch (error) {
       console.error("Error validando suscripción:", error);
-      // Ante error, bloqueamos todo
       setSinAnuncios(false);
       setMixSinVideo(false);
       setAccesoVip(false);
