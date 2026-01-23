@@ -1,9 +1,11 @@
 import { useState } from 'react';
 import { Container, Form, Alert, Spinner } from 'react-bootstrap';
 import { useAuth } from '../context/AuthContext';
-import '../App.css'; // 👈 Importante para los estilos neon
+import { api } from '../lib/api'; // 👈 1. IMPORTAMOS LA API
+import '../App.css'; 
 
 export const Welcome = () => {
+  // Asumimos que tus funciones de login devuelven la credencial (UserCredential)
   const { loginWithGoogle, loginWithEmail, registerWithEmail, loginAnonymously } = useAuth();
   
   const [modoEmail, setModoEmail] = useState(false);
@@ -14,32 +16,66 @@ export const Welcome = () => {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
+  // --- 2. HANDLER PARA GOOGLE (Nuevo) ---
+  const handleGoogleLogin = async () => {
+      setError("");
+      try {
+          // 👇 AGREGAMOS ": any" AQUÍ
+          const result: any = await loginWithGoogle();
+          
+          if (result && result.user) {
+              await api.sincronizarUsuario(result.user);
+          }
+      } catch (err) { console.error(err); }
+  };
+
+  // --- 3. HANDLER PARA EMAIL/PASSWORD ---
   const handleSubmit = async (e: React.FormEvent) => {
       e.preventDefault();
       setError("");
       setLoading(true);
       try {
-          if (esRegistro) await registerWithEmail(email, pass);
-          else await loginWithEmail(email, pass);
+          // 👇 AGREGAMOS ": any" AQUÍ TAMBIÉN
+          let result: any;
+          
+          if (esRegistro) {
+              result = await registerWithEmail(email, pass);
+          } else {
+              result = await loginWithEmail(email, pass);
+          }
+
+          if (result && result.user) {
+              await api.sincronizarUsuario(result.user);
+          }
+
       } catch (err: any) {
           console.error(err);
-          setError("Error al ingresar. Verificá tus datos.");
+          // Traducimos errores comunes de Firebase
+          if (err.code === 'auth/wrong-password') setError("Contraseña incorrecta.");
+          else if (err.code === 'auth/user-not-found') setError("Usuario no encontrado.");
+          else if (err.code === 'auth/email-already-in-use') setError("Ese email ya está registrado.");
+          else setError("Error al ingresar. Verificá tus datos.");
       }
       setLoading(false);
   };
 
+  // --- 4. HANDLER PARA INVITADO ---
   const handleInvitado = async () => {
       console.log("1. Iniciando login invitado...");
       setLoading(true);
       try {
-          await loginAnonymously();
-          console.log("2. ¡Éxito! Redirigiendo...");
+          // 👇 Y AQUÍ TAMBIÉN
+          const result: any = await loginAnonymously();
+          
+          if (result && result.user) {
+              await api.sincronizarUsuario(result.user);
+          }
+          console.log("2. ¡Éxito! Usuario guardado.");
       } catch (e: any) {
           console.error("3. ERROR FATAL:", e);
-          console.log("Código de error:", e.code);
-          setError("No se pudo entrar. Mirá la consola.");
-          setLoading(false);
+          setError("No se pudo entrar como invitado.");
       }
+      setLoading(false);
   };
 
   return (
@@ -53,22 +89,22 @@ export const Welcome = () => {
           </p>
       </div>
 
-      {/* --- TARJETA DE VIDRIO (Reemplaza al Card de Bootstrap) --- */}
+      {/* --- TARJETA DE VIDRIO --- */}
       <div className="card-shamona p-4 p-md-5 w-100 shadow-lg animate-in zoom-in" style={{ maxWidth: '400px' }}>
         
         {/* VISTA PRINCIPAL DE BOTONES */}
         {!modoEmail && (
             <div className="d-grid gap-3">
-                {/* 1. GOOGLE (Estilo limpio para resaltar) */}
+                {/* 1. GOOGLE */}
                 <button 
                     className="btn-google py-2 d-flex align-items-center justify-content-center gap-2 border-0 w-100" 
-                    onClick={loginWithGoogle}
+                    onClick={handleGoogleLogin} 
                 >
                     <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="G" width="20" />
                     Entrar con Google
                 </button>
                 
-                {/* 2. EMAIL (Botón Neón Principal) */}
+                {/* 2. EMAIL */}
                 <button 
                     className="btn-neon-main" 
                     onClick={() => setModoEmail(true)}
@@ -82,7 +118,7 @@ export const Welcome = () => {
                     <hr className="flex-grow-1 border-white" />
                 </div>
 
-                {/* 3. INVITADO (Botón Neón Secundario) */}
+                {/* 3. INVITADO */}
                 <button 
                     className="btn-neon-secondary py-2" 
                     onClick={handleInvitado} 
