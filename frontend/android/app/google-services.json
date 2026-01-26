@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "930301862044",
+    "project_id": "la-shamona-back",
+    "storage_bucket": "la-shamona-back.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:930301862044:android:89f1a48084ae84f8a5cd59",
+        "android_client_info": {
+          "package_name": "com.victoria.elviajero"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "930301862044-855blh0lde4i34m4vti3eubh80233n8d.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDz8rEd4tMyJ9nZe0NOiba8Gr8yUHV0wKU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "930301862044-855blh0lde4i34m4vti3eubh80233n8d.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

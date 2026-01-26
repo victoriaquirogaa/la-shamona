@@ -17,6 +17,12 @@ class CanjeInput(BaseModel):
 class NombreUpdate(BaseModel):
     nombre: str
 
+class UsuarioSincronizar(BaseModel):
+    uid: str
+    email: str | None = None
+    nombre: str | None = None
+    avatar: str | None = None
+
 # --- 1. REGISTRO DE USUARIO NUEVO ---
 @router.post("/registrar")
 def registrar_usuario(datos: RegistroInput):
@@ -34,6 +40,28 @@ def registrar_usuario(datos: RegistroInput):
         return {"mensaje": "Usuario registrado", "estado": "free"}
     
     return {"mensaje": "Usuario ya existía", "estado": "ok"}
+
+# --- X. SINCRONIZAR USUARIO (Login Social) ---
+@router.post("/sincronizar")
+def sincronizar_usuario(datos: UsuarioSincronizar):
+    print(f"📥 Sincronizando usuario: {datos.nombre} ({datos.uid})")
+    
+    try:
+        doc_ref = db.collection('usuarios').document(datos.uid)
+        
+        # Usamos merge=True para guardar nombre/email sin borrar si ya tenía monedas o VIP
+        doc_ref.set({
+            "email": datos.email,
+            "nombre": datos.nombre,
+            "avatar": datos.avatar,
+            "ultimo_login": datetime.now().isoformat()
+        }, merge=True)
+        
+        return {"status": "ok", "mensaje": "Usuario sincronizado"}
+        
+    except Exception as e:
+        print(f"❌ Error DB: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 # --- 2. CANJE DE CÓDIGOS (Desde BD) ---
 @router.post("/canjear-codigo")
