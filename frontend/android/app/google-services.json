@@ -14,6 +14,22 @@
       },
       "oauth_client": [
         {
+          "client_id": "930301862044-24hhkta0mhgtr61lgctfnfpjgkaru2p5.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.victoria.elviajero",
+            "certificate_hash": "6f5e7f0abd11fd0e38fa8078361be5495563044f"
+          }
+        },
+        {
+          "client_id": "930301862044-sk2bv7tnur6inoj439udsiaq7qa4fg1u.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.victoria.elviajero",
+            "certificate_hash": "5385faa5d5e7b59257575e47c8e4aaf817088008"
+          }
+        },
+        {
           "client_id": "930301862044-855blh0lde4i34m4vti3eubh80233n8d.apps.googleusercontent.com",
           "client_type": 3
         }
