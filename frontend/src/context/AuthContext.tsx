@@ -6,17 +6,19 @@ import {
   onAuthStateChanged, 
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
-  signInAnonymously 
+  signInAnonymously,
+  signInWithCredential // 👈 Importante: Para conectar Google Nativo con Firebase
 } from "firebase/auth";
 import { auth } from "../lib/firebase";
 import { api } from "../lib/api"; 
+import { GoogleAuth } from '@codetrix-studio/capacitor-google-auth'; // 👈 El Plugin
+import { Capacitor } from '@capacitor/core'; // 👈 El detector de celular
 
-// 👇 1. CAMBIAMOS LA INTERFAZ: Ahora devuelven Promise<any> en lugar de void
 interface AuthContextType {
   user: any;
   loading: boolean;
   settings: { volumen: number; vibracion: boolean };
-  loginWithGoogle: () => Promise<any>; 
+  loginWithGoogle: () => Promise<any>;
   loginWithEmail: (email: string, pass: string) => Promise<any>;
   registerWithEmail: (email: string, pass: string) => Promise<any>;
   loginAnonymously: () => Promise<any>;
@@ -33,6 +35,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [loading, setLoading] = useState(true);
   const [settings, setSettings] = useState({ volumen: 50, vibracion: true });
 
+  // 👇 Inicialización opcional (ayuda en algunos celus a prevenir errores)
+  useEffect(() => {
+    if (Capacitor.isNativePlatform()) {
+       GoogleAuth.initialize();
+    }
+  }, []);
+
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       if (currentUser) {
@@ -48,8 +57,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             avatar: currentUser.photoURL || "🕵️" 
         });
 
-        // NOTA: Mantenemos esto aquí también como seguridad
-        // por si el usuario recarga la página.
         try {
             await api.sincronizarUsuario(currentUser);
         } catch (error) {
@@ -64,12 +71,30 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     return () => unsubscribe();
   }, []);
 
-  // 👇 2. AGREGAMOS LOS RETURN EN CADA FUNCIÓN
-
+  // 👇 LA FUNCIÓN HÍBRIDA (La clave de todo)
   const loginWithGoogle = async () => {
-    const provider = new GoogleAuthProvider();
-    // ¡IMPORTANTE! Devolvemos el resultado para que Welcome.tsx lo reciba
-    return signInWithPopup(auth, provider); 
+    // 1. Preguntamos: ¿Es celular?
+    if (Capacitor.isNativePlatform()) {
+        console.log("📱 Modo Celular: Iniciando Login Nativo...");
+        
+        // A. Abrimos la ventanita gris de Android
+        const googleUser = await GoogleAuth.signIn();
+        
+        // B. Obtenemos el token de seguridad
+        const idToken = googleUser.authentication.idToken;
+        
+        // C. Creamos la credencial para Firebase
+        const credential = GoogleAuthProvider.credential(idToken);
+        
+        // D. Entramos
+        return signInWithCredential(auth, credential);
+
+    } else {
+        // 2. Si es PC, usamos el Popup de siempre
+        console.log("💻 Modo Web: Iniciando Popup...");
+        const provider = new GoogleAuthProvider();
+        return signInWithPopup(auth, provider);
+    }
   };
 
   const loginWithEmail = async (email: string, pass: string) => {
@@ -84,8 +109,20 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     return signInAnonymously(auth);
   };
 
+  // 👇 EL LOGOUT BLINDADO (Anti-Crash)
   const logout = async () => {
+    // Intentamos desconectar Google solo si es celular
+    if (Capacitor.isNativePlatform()) {
+        try {
+            await GoogleAuth.signOut();
+        } catch (error) {
+            // Si falla (ej: eras invitado), no pasa nada, seguimos.
+            console.log("No se pudo cerrar sesión nativa (o no era necesaria):", error);
+        }
+    }
+    // Cerramos sesión en Firebase (esto funciona siempre)
     await signOut(auth);
+    setUser(null);
   };
 
   const updateSettings = (newSettings: any) => {

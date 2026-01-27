@@ -4,4 +4,5 @@
     <string name="title_activity_main">El Viajero</string>
     <string name="package_name">com.victoria.elviajero</string>
     <string name="custom_url_scheme">com.victoria.elviajero</string>
+    <string name="server_client_id">930301862044-855blh0lde4i34m4vti3eubh80233n8d.apps.googleusercontent.com</string>
 </resources>
