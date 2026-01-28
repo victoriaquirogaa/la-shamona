@@ -9,9 +9,12 @@ import { useSubscription } from '../context/SubscriptionContext';
 interface Props {
   datos: { codigo: string; soyHost: boolean; nombre: string };
   salir: () => void;
+  volver: () => void; // 👈 Ya estaba agregada
 }
 
-export const PiramideOnline = ({ datos, salir }: Props) => {
+// 👇 AGREGAMOS 'volver' AQUÍ TAMBIÉN
+export const PiramideOnline = ({ datos, salir, volver }: Props) => {
+  
   // 👇 CAMBIO 1: Usamos 'sinAnuncios' (Premium + Amigos)
   const { sinAnuncios } = useSubscription(); 
   
@@ -69,6 +72,9 @@ export const PiramideOnline = ({ datos, salir }: Props) => {
       if (!sinAnuncios) {
           await AdService.mostrarIntersticial();
       }
+      // 👇 IMPORTANTE: Volvemos al lobby en el FRONTEND primero
+      volver(); 
+      // Y luego le avisamos al BACKEND que termine el juego para todos
       await api.finalizarJuegoOnline(datos.codigo);
   };
 
@@ -200,14 +206,38 @@ export const PiramideOnline = ({ datos, salir }: Props) => {
         </div>
       </div>
 
-      <div className="mt-4 d-flex flex-column gap-2 w-100" style={{maxWidth: '300px'}}>
+      {/* 👇 AQUÍ ESTÁ EL CAMBIO DE LOS BOTONES 👇 */}
+      <div className="mt-4 d-flex flex-column gap-3 w-100 align-items-center" style={{maxWidth: '350px'}}>
+        
         {datos.soyHost && (
-          <button className="btn-neon-secondary py-2 fw-bold" onClick={handleFinalizar}>
-            🔄 ELEGIR OTRO JUEGO
+          <button 
+              className="btn btn-outline-info w-100 rounded-pill py-2 fw-bold animate-pulse" 
+              style={{borderWidth: '2px', boxShadow: '0 0 10px rgba(13,202,240,0.3)'}}
+              onClick={handleFinalizar}
+          >
+            🔄 ELEGIR OTRO JUEGO (Host)
           </button>
         )}
-        <button className="btn btn-link text-danger text-decoration-none small" onClick={handleSalir}>Abandonar Sala</button>
+
+        {/* Si NO soy host, me aparece el botón de volver para esperar en el lobby */}
+        {!datos.soyHost && (
+           <button 
+               className="btn btn-outline-secondary w-100 rounded-pill py-2 small"
+               onClick={volver}
+           >
+             ⬅️ Volver a la Sala
+           </button>
+        )}
+
+        <button 
+            className="btn btn-link text-danger text-decoration-none small opacity-75 mt-2" 
+            onClick={handleSalir}
+        >
+            ❌ Desconectarse y Salir
+        </button>
       </div>
+      {/* 👆 FIN DEL CAMBIO 👆 */}
+
     </Container>
   );
 };

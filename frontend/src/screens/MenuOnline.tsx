@@ -15,9 +15,10 @@ import { LaJefaOnline } from './LaJefaOnline';
 interface Props {
   volver: () => void;
   onJuegoIniciado: (juego: string, codigoSala: string, soyHost: boolean, miNombre: string) => void; 
+  datosSesion?: { codigo: string; soyHost: boolean; nombre: string } | null;
 }
 
-export const MenuOnline = ({ volver, onJuegoIniciado }: Props) => {
+export const MenuOnline = ({ volver, onJuegoIniciado, datosSesion }: Props) => {
   // 👇 CAMBIO 1: Usamos los flags correctos (Amigos + Premium)
   const { accesoVip, mixSinVideo } = useSubscription(); 
   
@@ -51,6 +52,22 @@ export const MenuOnline = ({ volver, onJuegoIniciado }: Props) => {
       });
   }
 
+  useEffect(() => {
+    if (datosSesion && !salaActiva) {
+        console.log("♻️ Recuperando sesión de sala:", datosSesion.codigo);
+        // Recuperamos el nombre y el código
+        setNombre(datosSesion.nombre);
+        setCodigoSala(datosSesion.codigo);
+        
+        // Forzamos la activación de la sala para que arranque el SYNC
+        setSalaActiva({ 
+            codigo: datosSesion.codigo, 
+            jugadores: [datosSesion.nombre], // Se actualizará solo con el sync
+            estado: 'esperando' 
+        });
+    }
+  }, [datosSesion]);  
+  
   // --- ALARMA DE MENSAJES (EMPATE / SISTEMA) ---
   useEffect(() => {
     if (salaActiva?.datos_juego?.mensaje_sistema) {
@@ -229,10 +246,10 @@ export const MenuOnline = ({ volver, onJuegoIniciado }: Props) => {
       const juego = salaActiva.juego_actual;
       const accionSalir = soyHost ? volverAlLobby : salirDeLaSala;
 
-      if (juego === 'la-jefa') return <LaJefaOnline datos={{ codigo: salaActiva.codigo, soyHost, nombre }} salir={accionSalir} />;
-      if (juego === 'impostor') return <ImpostorOnline datos={{ codigo: salaActiva.codigo, soyHost, nombre }} salir={accionSalir} />;
-      if (juego === 'rico_pobre' || juego === 'probable') return <VotacionOnline datos={{ codigo: salaActiva.codigo, soyHost, nombre, juego }} salir={accionSalir} />;
-      if (juego === 'piramide') return <PiramideOnline datos={{ codigo: salaActiva.codigo, soyHost, nombre }} salir={accionSalir} />;
+      if (juego === 'la-jefa') return <LaJefaOnline datos={{ codigo: salaActiva.codigo, soyHost, nombre }} salir={accionSalir} volver={accionSalir} />;
+      if (juego === 'impostor') return <ImpostorOnline datos={{ codigo: salaActiva.codigo, soyHost, nombre }} salir={accionSalir} volver={accionSalir}/>;
+      if (juego === 'rico_pobre' || juego === 'probable') return <VotacionOnline datos={{ codigo: salaActiva.codigo, soyHost, nombre, juego }} salir={accionSalir} volver={accionSalir}/>;
+      if (juego === 'piramide') return <PiramideOnline datos={{ codigo: salaActiva.codigo, soyHost, nombre }} salir={accionSalir} volver={accionSalir}/>;
 
       return (
           <Container className="pt-5 text-white text-center">

@@ -14,9 +14,10 @@ ChartJS.register(ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarEle
 interface Props {
   datos: { codigo: string; soyHost: boolean; nombre: string; juego: string };
   salir: () => void;
+  volver: () => void; // 👈 AGREGÁ ESTA LÍNEA
 }
 
-export const VotacionOnline = ({ datos, salir }: Props) => {
+export const VotacionOnline = ({ datos, salir, volver }: Props) => {
   // 👇 CAMBIO 1: Usamos 'sinAnuncios' (Premium + Amigos)
   const { sinAnuncios } = useSubscription(); 
   
@@ -31,6 +32,13 @@ export const VotacionOnline = ({ datos, salir }: Props) => {
         const data = await api.getSalaOnline(datos.codigo);
         setSala(data);
         setLoading(false);
+
+        // 👇 DETECCIÓN AUTOMÁTICA: Si el host cerró el juego, volvemos
+        if (data.estado === 'esperando') {
+             volver(); 
+             return;
+        }
+
       } catch (e) { console.error(e); }
     };
     fetchSala();
@@ -45,6 +53,20 @@ export const VotacionOnline = ({ datos, salir }: Props) => {
           await AdService.mostrarIntersticial();
       }
       salir();
+  };
+
+  // 👇 NUEVO: VOLVER AL LOBBY PARA EL HOST
+  const handleVolverAlLobby = async () => {
+       if (!sinAnuncios) await AdService.mostrarIntersticial();
+       
+       if (datos.soyHost) {
+           try {
+               await api.terminarJuego(datos.codigo); 
+           } catch (e) {
+               console.error("Error al cerrar el juego:", e);
+           }
+       }
+       volver(); 
   };
 
   if (loading || !sala) return <Container className="pt-5 min-vh-100 bg-dark text-center d-flex align-items-center justify-content-center"><Spinner animation="border" variant="info"/></Container>;
@@ -103,7 +125,6 @@ export const VotacionOnline = ({ datos, salir }: Props) => {
       {/* HEADER */}
       <div className="w-100 d-flex justify-content-between align-items-center mb-5 px-2" style={{maxWidth: '600px'}}>
            <div className="badge bg-transparent border border-info text-info px-3 py-2 rounded-pill fw-normal">{titulo?.toUpperCase()}</div>
-           <button className="btn btn-sm btn-outline-light border-0 opacity-50" onClick={handleSalir}>SALIR</button>
       </div>
 
       {/* PREGUNTA */}
@@ -172,13 +193,23 @@ export const VotacionOnline = ({ datos, salir }: Props) => {
                 <button className="btn-neon-main py-3 fw-bold fs-5" onClick={handleSiguiente}>
                     🔄 OTRA PREGUNTA
                 </button>
+                
+                {/* 👇 BOTÓN NUEVO */}
+                <button className="btn btn-outline-info py-3 fw-bold rounded-pill" onClick={handleVolverAlLobby}>
+                    ⬅️ ELEGIR OTRO JUEGO
+                </button>
+
                 <button className="btn btn-link text-danger text-decoration-none mt-2" onClick={handleSalir}>
-                    Terminar juego
+                    ❌ Terminar y Salir
                 </button>
              </div>
           ) : (
-             <div className="animate-pulse text-white-50">
-                 Esperando que el Host decida...
+             <div className="d-grid gap-3 animate-pulse text-white-50">
+                 <p>Esperando que el Host decida...</p>
+                 {/* Opción para invitados si se quieren ir antes */}
+                 <button className="btn btn-outline-secondary rounded-pill btn-sm" onClick={handleSalir}>
+                    Salir de la sala
+                 </button>
              </div>
           )}
         </div>

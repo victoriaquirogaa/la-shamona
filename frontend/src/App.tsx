@@ -5,6 +5,7 @@ import { SubscriptionProvider, useSubscription } from './context/SubscriptionCon
 import { Capacitor } from '@capacitor/core';
 import { AppTrackingTransparency } from 'capacitor-plugin-app-tracking-transparency';
 import { AdMob, BannerAdSize, BannerAdPosition } from '@capacitor-community/admob';
+import logo from './assets/logo.png';
 
 // PANTALLAS PRINCIPALES
 import { Welcome } from './screens/Welcome';
@@ -19,7 +20,7 @@ import { Peaje } from './screens/Peaje';
 import { JuegoSimple } from './screens/JuegoSimple';
 import { Impostor } from './screens/Impostor';
 
-// 👇 JUEGOS ONLINE (Agregados para que funcione el ruteo)
+// 👇 JUEGOS ONLINE
 import { LaJefaOnline } from './screens/LaJefaOnline';
 import { PiramideOnline } from './screens/PiramideOnline';
 import { VotacionOnline } from './screens/VotacionOnline';
@@ -40,23 +41,20 @@ const AppController = () => {
   useEffect(() => {
     const iniciarPublicidad = async () => {
       try {
-        // Si tiene el beneficio 'sinAnuncios', ocultamos y salimos.
         if (sinAnuncios) {
             console.log("💎 Usuario VIP/Amigo: Publicidad desactivada");
             await AdMob.hideBanner().catch(() => {});
             return;
         }
 
-        // Permisos iOS
         if (Capacitor.getPlatform() === 'ios') {
             await AppTrackingTransparency.requestPermission();
         }
 
         await AdMob.initialize({ initializeForTesting: true });
 
-        // Mostrar Banner
         await AdMob.showBanner({
-          adId: 'ca-app-pub-3940256099942544/6300978111', // ID de prueba Android
+          adId: 'ca-app-pub-3940256099942544/6300978111',
           adSize: BannerAdSize.BANNER,
           position: BannerAdPosition.BOTTOM_CENTER,
           margin: 0,
@@ -71,18 +69,15 @@ const AppController = () => {
     if (user) {
       iniciarPublicidad();
     }
-  }, [user, sinAnuncios]); // Se ejecuta al loguear o al canjear código
+  }, [user, sinAnuncios]);
 
   if (!user) return <Welcome />;
 
   // --- MANEJO DE RUTEO ONLINE ---
   const handleJuegoOnlineIniciado = (juego: string, codigo: string, soyHost: boolean, nombre: string) => {
       console.log(`🚀 Entrando a partida online: ${juego} (Sala: ${codigo})`);
-      
-      // Guardamos los datos para pasarlos al componente
       setDatosOnline({ codigo, soyHost, nombre, juego });
 
-      // Redirigimos a la vista correcta según el ID del juego
       switch (juego) {
           case 'impostor': setVista('impostor-online'); break;
           case 'votacion': 
@@ -95,8 +90,15 @@ const AppController = () => {
   };
 
   const salirOnline = () => {
+      // ESTE BORRA TODO Y TE MANDA AL HOME (Desconecta)
       setDatosOnline(null);
       setVista('home');
+  };
+
+  // 👇 NUEVA FUNCIÓN: Vuelve al menú de juegos PERO MANTIENE LA CONEXIÓN 👇
+  const volverAlLobby = () => {
+      console.log("🔙 Volviendo al lobby (manteniendo datos)...");
+      setVista('menu-online');
   };
 
   // --- RUTEADOR DE VISTAS ---
@@ -117,20 +119,32 @@ const AppController = () => {
 
     // ONLINE (MENÚ)
     case 'menu-online': 
-      return <MenuOnline volver={() => setVista('home')} onJuegoIniciado={handleJuegoOnlineIniciado} />;
+      return <MenuOnline 
+          volver={() => setVista('home')} 
+          onJuegoIniciado={handleJuegoOnlineIniciado}
+          datosSesion={datosOnline} // 👈 ¡ESTA ES LA CLAVE!
+      />;
 
-    // ONLINE (PANTALLAS DE JUEGO)
+    // 👇 AQUÍ AGREGAMOS LA PROP 'volver={volverAlLobby}' A TODOS 👇
     case 'impostor-online': 
-      return datosOnline ? <ImpostorOnline datos={datosOnline} salir={salirOnline} /> : <Home irA={setVista}/>;
+      return datosOnline ? 
+        <ImpostorOnline datos={datosOnline} salir={salirOnline} volver={volverAlLobby} /> 
+        : <Home irA={setVista}/>;
     
     case 'votacion-online': 
-      return datosOnline ? <VotacionOnline datos={datosOnline} salir={salirOnline} /> : <Home irA={setVista}/>;
+      return datosOnline ? 
+        <VotacionOnline datos={datosOnline} salir={salirOnline} volver={volverAlLobby} /> 
+        : <Home irA={setVista}/>;
     
     case 'piramide-online': 
-      return datosOnline ? <PiramideOnline datos={datosOnline} salir={salirOnline} /> : <Home irA={setVista}/>;
+      return datosOnline ? 
+        <PiramideOnline datos={datosOnline} salir={salirOnline} volver={volverAlLobby} /> 
+        : <Home irA={setVista}/>;
     
     case 'lajefa-online': 
-      return datosOnline ? <LaJefaOnline datos={datosOnline} salir={salirOnline} /> : <Home irA={setVista}/>;
+      return datosOnline ? 
+        <LaJefaOnline datos={datosOnline} salir={salirOnline} volver={volverAlLobby} /> 
+        : <Home irA={setVista}/>;
 
     default: return <Home irA={setVista} />;
   }

@@ -3,17 +3,17 @@ import { Container, Spinner } from 'react-bootstrap';
 import { api } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
 import { useSubscription } from '../context/SubscriptionContext'; 
-import { AdService } from '../lib/AdMobUtils'; // 👈 Importamos AdService
+import { AdService } from '../lib/AdMobUtils'; 
 import '../App.css'; 
 
 interface Props {
   datos: { codigo: string; soyHost: boolean; nombre: string }; 
   salir: () => void;
+  volver: () => void; // 👈 Ya lo tenías agregado
 }
 
-export const ImpostorOnline = ({ datos, salir }: Props) => {
+export const ImpostorOnline = ({ datos, salir, volver }: Props) => {
   const { user } = useAuth();
-  // 👇 1. USAMOS 'accesoVip' (para reiniciar con permisos) y 'sinAnuncios' (para la publi)
   const { accesoVip, sinAnuncios } = useSubscription(); 
   
   // ESTADOS
@@ -75,19 +75,25 @@ export const ImpostorOnline = ({ datos, salir }: Props) => {
   const handleReiniciar = async () => {
       setReiniciando(true);
       try {
-        // 🚀 2. ENVIAR PERMISO AL REINICIAR (accesoVip)
         await api.iniciarJuegoOnline(datos.codigo, 'impostor', undefined, accesoVip); 
         setMiVoto(null);
       } catch (e) { console.error(e); }
        setReiniciando(false);
   };
 
+  // 👇 SALIR SEGURO (CON PUBLICIDAD)
   const handleSalir = async () => {
-      // 👇 3. PUBLICIDAD SOLO SI NO ES AMIGO/PREMIUM
       if (!sinAnuncios) {
           await AdService.mostrarIntersticial();
       }
       salir();
+  };
+
+  // 👇 NUEVO: VOLVER AL LOBBY PARA EL HOST
+  const handleVolverAlLobby = async () => {
+       if (!sinAnuncios) await AdService.mostrarIntersticial();
+       volver(); // Vuelve al menú en el frontend
+       // Opcional: Podrías llamar a api.terminarJuego() si quisieras cerrar la partida actual en el backend
   };
 
   // ================= VISTAS =================
@@ -132,7 +138,7 @@ export const ImpostorOnline = ({ datos, salir }: Props) => {
                 ) : (
                     <div className="card-shamona p-4 shadow-lg animate-in zoom-in d-flex flex-column justify-content-center align-items-center text-center"
                          style={{
-                             width: 'min(80vw, 300px)', // Responsive
+                             width: 'min(80vw, 300px)', 
                              aspectRatio: '1/1',
                              border: `3px solid ${soyImpostor ? 'var(--neon-pink)' : '#00ff9d'}`,
                              background: soyImpostor ? 'rgba(255, 0, 85, 0.1)' : 'rgba(0, 255, 157, 0.1)'
@@ -146,7 +152,6 @@ export const ImpostorOnline = ({ datos, salir }: Props) => {
                         ) : (
                             <>
                                 <small className="text-white-50 ls-2 text-uppercase mb-2">LA PALABRA ES</small>
-                                {/* 👇 4. FIX VISUAL: LETRA ADAPTABLE */}
                                 <h2 
                                     className="fw-black text-white mb-3 text-wrap text-uppercase" 
                                     style={{
@@ -264,8 +269,17 @@ export const ImpostorOnline = ({ datos, salir }: Props) => {
                                 {reiniciando ? <Spinner size="sm"/> : "🔄 JUGAR OTRA VEZ"}
                             </button>
                             
-                            <button className="btn btn-outline-secondary py-3 fw-bold rounded-pill" onClick={handleSalir}>
-                                ❌ SALIR AL MENÚ
+                            {/* 👇 BOTÓN NUEVO: VOLVER AL LOBBY PARA CAMBIAR DE JUEGO */}
+                            <button 
+                                className="btn btn-outline-info py-3 fw-bold rounded-pill" 
+                                style={{borderWidth: '2px'}}
+                                onClick={handleVolverAlLobby}
+                            >
+                                ⬅️ ELEGIR OTRO JUEGO
+                            </button>
+
+                            <button className="btn btn-link text-white-50 text-decoration-none small mt-2" onClick={handleSalir}>
+                                ❌ SALIR DEL TODO
                             </button>
                         </>
                     ) : (
@@ -279,9 +293,11 @@ export const ImpostorOnline = ({ datos, salir }: Props) => {
             {!soyHost && (
                 <div className="animate-pulse mt-4 w-100" style={{maxWidth: '400px'}}>
                     <p className="text-white-50 small">{termino ? "Esperando al Host..." : "El juego continúa..."}</p>
+                    
+                    {/* Si termina el juego, le damos opción de salir o volver al lobby */}
                     {termino && (
-                        <button className="btn btn-outline-secondary w-100 py-2 rounded-pill mt-3" onClick={handleSalir}>
-                            ❌ Salir
+                        <button className="btn btn-outline-secondary w-100 py-2 rounded-pill mt-3" onClick={volver}>
+                            ⬅️ Volver a la Sala
                         </button>
                     )}
                 </div>
