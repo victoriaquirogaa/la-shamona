@@ -1,4 +1,4 @@
-export const API_URL = "http://127.0.0.1:8000";
+export const API_URL = "https://viajero-backend-x42g.onrender.com";
 
 // 🚨 FUNCIÓN ESPÍA: Atrapa el error y te lo muestra en la cara
 // 🚨 FUNCIÓN ESPÍA (Versión Relajada)

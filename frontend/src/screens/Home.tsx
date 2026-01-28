@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Container, Modal, Form, Badge, Button, InputGroup } from 'react-bootstrap';
+import logo from '../assets/logo.png';
 import { useAuth } from '../context/AuthContext';
 import { useSubscription } from '../context/SubscriptionContext';
 import { useSound } from '../context/SoundContext';
@@ -88,9 +89,24 @@ export const Home = ({ irA }: Props) => {
 
       {/* --- LOGO PRINCIPAL --- */}
       <div className="mb-5 animate-in zoom-in">
-        <h1 className="display-1 fw-black titulo-neon m-0 lh-1" style={{ letterSpacing: '-2px' }}>
-          VIAJERO
-        </h1>
+       <div className="d-flex align-items-center justify-content-center mb-2 animate-in zoom-in">
+        
+        {/* Imagen del Logo */}
+        <img 
+            src={logo} 
+            alt="Logo" 
+            className="me-0 animate-pulse"
+            style={{ 
+                // 👇 CAMBIÁ ESTE VALOR 👇
+            height: '100px',  // Probá 90px, 100px o 110px
+            width: 'auto',
+            filter: 'drop-shadow(0 0 8px rgba(0, 255, 255, 0.5))' 
+            }} 
+        />
+
+        {/* Título */}
+        <h1 className="titulo-neon display-3 fw-bold mb-0">VIAJERO</h1>
+    </div>
         <p className="text-white-50 fs-5 ls-2 fst-italic">Tu compañero de gira 🍻</p>
       </div>
       
