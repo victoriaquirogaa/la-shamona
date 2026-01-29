@@ -2,6 +2,12 @@ PARA CORRER EL BACK:
 .\venv\Scripts\Activate
 uvicorn main:app --reload
 
+linux
+source venv/bin/activate
+uvicorn main:app --reload
+
+
+
 si baje cambios y falla (en back):
 pip install -r requirements.txt
 

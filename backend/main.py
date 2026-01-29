@@ -1,7 +1,8 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 # Importamos tus routers
-from routers import yo_nunca, votacion, preguntas, la_puta, peaje, piramide, impostor, online, usuarios 
+from routers import yo_nunca, votacion, preguntas, la_puta, peaje, piramide, impostor, online, usuarios, bebidas
+
 
 app = FastAPI()
 
@@ -31,6 +32,7 @@ app.include_router(piramide.router, prefix="/juegos/piramide", tags=["Piramide"]
 app.include_router(votacion.router, prefix="/juegos/votacion", tags=["Votacion"])
 app.include_router(preguntas.router, prefix="/juegos/preguntas", tags=["Preguntas"])
 app.include_router(online.router, prefix="/juegos/online", tags=["Modo Online"])
+app.include_router(bebidas.router, prefix="/bebidas", tags=["Bebidas"])
 
 # USUARIOS
 app.include_router(usuarios.router, prefix="/usuarios", tags=["usuarios"]) 

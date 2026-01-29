@@ -1,4 +1,7 @@
 export const API_URL = "http://127.0.0.1:8000";
+import type { Drink } from "./drinks-data";
+import { auth } from "./firebase";
+
 
 // 🚨 FUNCIÓN ESPÍA: Atrapa el error y te lo muestra en la cara
 // 🚨 FUNCIÓN ESPÍA (Versión Relajada)
@@ -39,6 +42,7 @@ const getDeviceId = () => {
 
 // Objeto principal API
 export const api = {
+  
   checkHealth: async () => {
     try {
       const res = await fetch(`${API_URL}/`);
@@ -108,6 +112,54 @@ export const api = {
     const response = await safeFetch(`/usuarios/${idParaBuscar}/permisos`);
     return await response.json();
   },
+
+    // --- TRAGOS ---
+ // --- TRAGOS ---
+obtenerTragos: async () => {
+  const res = await safeFetch("/bebidas");
+  if (!res || (res as Response).status === 404) return [];
+
+  const data = await (res as Response).json();
+
+  // Mapeo Firestore -> UI
+  return (Array.isArray(data) ? data : []).map((d: any) => ({
+    id: d.id,
+    name: d.nombre ?? "Sin nombre",
+    image: d.imagen_url ?? "",
+
+    alcoholType: Array.isArray(d.alcohol_tipo) ? d.alcohol_tipo : [],
+    alcoholContent: Number(d.graduacion ?? 0),
+    preparationTime: Number(d.tiempo_min ?? 0),
+    difficulty: d.dificultad ?? "Media",
+
+    rating: Number(d.rating ?? 0),
+    likes: Number(d.likes ?? 0),
+
+    ingredients: Array.isArray(d.ingredientes) ? d.ingredientes : [],
+    steps: Array.isArray(d.pasos) ? d.pasos : [],
+
+    activo: !!d.activo,
+    esPremium: !!d.es_premium,
+  }));
+},
+
+
+
+toggleLikeBebida: async (bebidaId: string) => {
+  const user = auth.currentUser;
+  if (!user) throw new Error("No hay usuario logueado");
+  const token = await user.getIdToken();
+
+  const res = await fetch(`${API_URL}/bebidas/${bebidaId}/like`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  if (!res.ok) throw new Error("No se pudo toggle like");
+  return res.json() as Promise<{ id: string; likes: number; liked: boolean }>;
+},
+
+
 
 
   // --- JUEGOS ---
