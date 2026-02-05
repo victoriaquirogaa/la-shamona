@@ -1,10 +1,27 @@
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 from database import db
+from firebase_admin import auth
 from datetime import datetime, timedelta
 
 # 1. Create Router
 router = APIRouter()
+
+# --- SEGURIDAD: VERIFICADOR DE TOKEN ---
+async def verificar_token(authorization: str = Header(...)):
+    """
+    Saca el token del Header 'Authorization: Bearer ...' y verifica quién es.
+    """
+    try:
+        if not authorization.startswith("Bearer "):
+            raise HTTPException(status_code=401, detail="Token inválido")
+        
+        token = authorization.split("Bearer ")[1]
+        decoded_token = auth.verify_id_token(token)
+        return decoded_token['uid'] # Devuelve el UID real del usuario
+    except Exception as e:
+        print(f"Error verificando token: {e}")
+        raise HTTPException(status_code=401, detail="No autorizado o Token vencido")
 
 # --- MODELOS ---
 class RegistroInput(BaseModel):
@@ -256,3 +273,80 @@ def actualizar_nombre_usuario(uid: str, datos: NombreUpdate):
     except Exception as e:
         print(f"Error actualizando nombre: {e}")
         return {"error": str(e)}, 500
+    
+# ==========================================
+#      NUEVAS FUNCIONES DE ELIMINACIÓN
+# ==========================================
+
+# --- 6. ELIMINAR MI CUENTA (Botón Rojo de la App) ---
+@router.delete("/me")
+def eliminar_mi_cuenta(uid: str = Depends(verificar_token)):
+    """
+    La app llama a esto enviando su Token.
+    El backend (Python) tiene permisos de administrador para borrar todo.
+    """
+    print(f"💀 Solicitud de eliminación definitiva para: {uid}")
+
+    try:
+        # 1. Borrar de Firestore (Base de datos)
+        # Usamos delete() directo sobre el documento
+        db.collection('usuarios').document(uid).delete()
+        print("✅ Documento de Firestore eliminado")
+
+        # 2. Borrar de Authentication (Login de Google/Email)
+        try:
+            auth.delete_user(uid)
+            print("✅ Usuario de Auth eliminado")
+        except auth.UserNotFoundError:
+            print("⚠️ El usuario ya no existía en Auth (quizás ya se borró)")
+
+        return {"status": "ok", "mensaje": "Cuenta eliminada correctamente"}
+
+    except Exception as e:
+        print(f"❌ Error crítico borrando usuario: {e}")
+        raise HTTPException(status_code=500, detail="Error interno al borrar cuenta")
+
+
+# --- 7. LIMPIEZA DE USUARIOS INACTIVOS (Cron Job) ---
+@router.delete("/admin/limpiar-inactivos")
+def limpiar_usuarios_inactivos(admin_secret: str):
+    """
+    Esto lo llamás vos manualmente o con un Cron Job una vez al mes.
+    Ejemplo: DELETE /usuarios/admin/limpiar-inactivos?admin_secret=TU_CLAVE
+    """
+    # 🔐 PROTECCIÓN SIMPLE
+    if admin_secret != "CLAVE_SUPER_SECRETA_VICTORIA_123":
+        raise HTTPException(status_code=403, detail="Prohibido wacha")
+
+    try:
+        # Calculamos fecha de corte (90 días atrás)
+        limite = datetime.now() - timedelta(days=90)
+        
+        # Buscamos usuarios cuyo 'ultimo_login' sea más viejo que el límite
+        # OJO: Esto requiere que tengas un índice en Firestore para 'ultimo_login'
+        docs = db.collection('usuarios').where('ultimo_login', '<', limite.isoformat()).stream()
+        
+        contador = 0
+        batch = db.batch()
+        
+        for doc in docs:
+            # Agregamos al lote de borrado de Firestore
+            batch.delete(doc.reference)
+            
+            # Intentamos borrar de Auth también
+            try:
+                auth.delete_user(doc.id)
+            except:
+                pass 
+            
+            contador += 1
+
+        # Ejecutamos el borrado masivo
+        batch.commit()
+        
+        print(f"🧹 Limpieza completada: {contador} usuarios borrados.")
+        return {"mensaje": f"Se eliminaron {contador} usuarios inactivos."}
+
+    except Exception as e:
+        print(f"Error en limpieza: {e}")
+        return {"error": str(e)}

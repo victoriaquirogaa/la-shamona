@@ -42,7 +42,7 @@ const AppController = () => {
     const iniciarPublicidad = async () => {
       try {
         if (sinAnuncios) {
-            console.log("💎 Usuario VIP/Amigo: Publicidad desactivada");
+            console.log("💎 Usuario VIP: Publicidad desactivada");
             await AdMob.hideBanner().catch(() => {});
             return;
         }
