@@ -1,21 +1,23 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { api } from '../lib/api';
-import { useAuth } from './AuthContext'; // Necesitamos el user para saber el UID
+import { Capacitor } from '@capacitor/core';
+import { Purchases } from '@revenuecat/purchases-capacitor'; 
 import Swal from 'sweetalert2';
+import { api } from '../lib/api';
+import { useAuth } from './AuthContext';
 
-// 1. DEFINIMOS LA INTERFAZ COMPLETA
+// --- CONFIGURACIÓN DE REVENUECAT ---
+const API_KEYS = {
+  apple: "appl_TuClaveDeAppleAqui",
+  google: "goog_JdVFnPRWKpBTBOnxWVdfsyFILZz" // Tu clave real
+};
+
 interface SubscriptionContextType {
-  // --- Permisos finos ---
   sinAnuncios: boolean;
   mixSinVideo: boolean;
   accesoVip: boolean;
-  
-  // --- Estado general ---
-  isPremium: boolean; 
-  esAmigo: boolean; // 👈 AGREGADO: Para que Home.tsx no tire error
+  isPremium: boolean;
+  esAmigo: boolean;
   loading: boolean;
-  
-  // --- Acciones ---
   checkSubscription: () => Promise<void>;
   comprarPremium: (planId: string) => Promise<void>;
   restaurarCompras: () => Promise<void>;
@@ -26,43 +28,58 @@ const SubscriptionContext = createContext<SubscriptionContextType>({} as Subscri
 export const useSubscription = () => useContext(SubscriptionContext);
 
 export const SubscriptionProvider = ({ children }: { children: ReactNode }) => {
-  const { user } = useAuth(); // Traemos el usuario para chequear datos
+  const { user } = useAuth();
 
-  // Estados para los permisos
   const [sinAnuncios, setSinAnuncios] = useState(false);
   const [mixSinVideo, setMixSinVideo] = useState(false);
   const [accesoVip, setAccesoVip] = useState(false);
-  
-  // Estado general
-  const [isPremium, setIsPremium] = useState(false); 
-  const [esAmigo, setEsAmigo] = useState(false); // 👈 AGREGADO
+  const [isPremium, setIsPremium] = useState(false);
+  const [esAmigo, setEsAmigo] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  // 2. FUNCIÓN PRINCIPAL: CONSULTAR AL BACKEND
-  // En src/context/SubscriptionContext.tsx
+  // 1. INICIALIZAR REVENUECAT
+  useEffect(() => {
+    const initRC = async () => {
+      const apiKey = Capacitor.getPlatform() === 'android' 
+        ? API_KEYS.google 
+        : API_KEYS.apple;
 
-  // 2. FUNCIÓN PRINCIPAL: CONSULTAR AL BACKEND
+      console.log("🔧 Inicializando RevenueCat con:", apiKey);
+
+      // @ts-ignore
+      await Purchases.configure({ apiKey });
+      
+      // @ts-ignore
+      await Purchases.setLogLevel("DEBUG"); 
+    };
+    
+    initRC();
+  }, []);
+
+  // 2. CHECK SUBSCRIPTION
   const checkSubscription = async () => {
     try {
-      // 👇 ACÁ ESTÁ EL CAMBIO MÁGICO
-      // Si existe 'user' (logueado), usamos su UID. Si no, pasamos undefined y la API usa el device_id.
-      const idUsuario = user?.uid; 
+      const idUsuario = user?.uid;
       
-      const perms = await api.getPermisosUsuario(idUsuario); 
-      
-      console.log("🎟️ Permisos recibidos:", perms); // Mirá esto en la consola (F12)
+      if (idUsuario) {
+        // @ts-ignore
+        await Purchases.logIn(idUsuario);
+      }
+
+      const perms = await api.getPermisosUsuario(idUsuario);
+      console.log("🎟️ Permisos recibidos:", perms);
 
       setSinAnuncios(perms.sin_anuncios);
       setMixSinVideo(perms.mix_sin_video);
       setAccesoVip(perms.acceso_vip);
       
-      const premiumReal = perms.es_premium || false; 
+      const premiumReal = perms.es_premium || false;
       setIsPremium(premiumReal);
 
       if (perms.acceso_vip && !premiumReal) {
-          setEsAmigo(true);
+         setEsAmigo(true);
       } else {
-          setEsAmigo(perms.es_amigo || false);
+         setEsAmigo(perms.es_amigo || false);
       }
 
     } catch (error) {
@@ -77,45 +94,86 @@ export const SubscriptionProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  // 3. EFECTO INICIAL (Se dispara cuando cambia el usuario)
   useEffect(() => {
     checkSubscription();
-  }, [user]); // Agregamos 'user' como dependencia para que re-chequee al loguearse
+  }, [user]);
 
-  // 4. FUNCIONES DE COMPRA
+  // 3. COMPRAR PREMIUM
   const comprarPremium = async (planId: string) => {
-    console.log("Iniciando compra de:", planId);
-    Swal.fire({
+    try {
+      Swal.fire({
         title: 'Procesando...',
         text: 'Conectando con la tienda...',
         didOpen: () => Swal.showLoading()
-    });
+      });
 
-    setTimeout(async () => {
-        Swal.fire('Info', 'La integración de pagos real requiere RevenueCat SDK.', 'info');
-    }, 1000);
+      // @ts-ignore
+      const offerings = await Purchases.getOfferings();
+      
+      // @ts-ignore
+      const paqueteAComprar = offerings.current?.availablePackages.find(
+        (pkg: any) => pkg.identifier === planId
+      );
+
+      if (!paqueteAComprar) {
+        throw new Error(`No se encontró el plan: ${planId}. Revisá RevenueCat.`);
+      }
+
+      // @ts-ignore
+      // 👇 ACÁ AGREGUÉ EL : any PARA QUE NO CHILLE
+      const { customerInfo }: any = await Purchases.purchasePackage(paqueteAComprar);
+
+      console.log("Compra exitosa:", customerInfo);
+      
+      Swal.close();
+      await checkSubscription(); 
+
+      Swal.fire({
+        icon: 'success',
+        title: '¡Bienvenida!',
+        text: 'Tu suscripción ya está activa.'
+      });
+
+    } catch (e: any) {
+      Swal.close();
+      if (!e.userCancelled) {
+        console.error(e);
+        Swal.fire('Error', e.message || 'Hubo un problema con la compra', 'error');
+      }
+    }
   };
 
+  // 4. RESTAURAR COMPRAS
   const restaurarCompras = async () => {
-      Swal.fire({ title: 'Restaurando...', didOpen: () => Swal.showLoading() });
-      setTimeout(() => {
-          checkSubscription(); 
-          Swal.close();
-          Swal.fire('Listo', 'Se verificaron tus compras.', 'success');
-      }, 1000);
+      try {
+        Swal.fire({ title: 'Restaurando...', didOpen: () => Swal.showLoading() });
+        
+        // @ts-ignore
+        // 👇 ACÁ TAMBIÉN AGREGUÉ : any
+        const customerInfo: any = await Purchases.restorePurchases();
+        
+        await checkSubscription();
+        
+        Swal.close();
+        
+        // Ahora como es 'any', TypeScript deja pasar 'entitlements'
+        if (customerInfo?.entitlements?.active && Object.keys(customerInfo.entitlements.active).length > 0) {
+            Swal.fire('Listo', 'Se recuperaron tus compras anteriores.', 'success');
+        } else {
+            Swal.fire('Info', 'No se encontraron compras activas para restaurar.', 'info');
+        }
+
+      } catch (e: any) {
+        Swal.close();
+        console.error(e);
+        Swal.fire('Error', 'No se pudieron restaurar las compras.', 'error');
+      }
   };
 
   return (
     <SubscriptionContext.Provider value={{ 
-        sinAnuncios, 
-        mixSinVideo, 
-        accesoVip, 
-        isPremium, 
-        esAmigo, // 👈 AGREGADO AL VALUE
-        loading, 
-        checkSubscription, 
-        comprarPremium, 
-        restaurarCompras 
+        sinAnuncios, mixSinVideo, accesoVip, isPremium, esAmigo,
+        loading, checkSubscription, comprarPremium, restaurarCompras 
     }}>
       {children}
     </SubscriptionContext.Provider>
