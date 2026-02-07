@@ -15,14 +15,14 @@ export const Store = ({ volver }: Props) => {
 
     const planes = [
         { 
-            id: '24hs', 
+            id: 'diario', 
             titulo: '24 HORAS', 
             precio: '$0.99 USD', 
             desc: 'Solo por hoy',
             badge: '' 
         },
         { 
-            id: '10dias', 
+            id: 'diez', 
             titulo: '10 DÍAS', 
             precio: '$2.99 USD', 
             desc: 'Ideal vacaciones',

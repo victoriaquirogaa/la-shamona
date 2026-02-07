@@ -1,9 +1,9 @@
+import { doc, setDoc } from 'firebase/firestore'; // 👈 IMPORTANTE: Para guardar en la BD
+import { db } from './firebase'; // 👈 IMPORTANTE: Asegurate que la ruta a tu config de firebase sea esta
+
 export const API_URL = "https://viajero-backend-x42g.onrender.com";
 
-// 🚨 FUNCIÓN ESPÍA: Atrapa el error y te lo muestra en la cara
 // 🚨 FUNCIÓN ESPÍA (Versión Relajada)
-// En src/lib/api.ts
-
 const safeFetch = async (endpoint: string, options?: RequestInit) => {
   const fullUrl = `${API_URL}${endpoint}`;
   try {
@@ -17,14 +17,8 @@ const safeFetch = async (endpoint: string, options?: RequestInit) => {
 
   } catch (error: any) {
     console.error("Fetch Error:", error);
-    
-    // 👇👇👇 ¡ESTA ES LA CLAVE! 👇👇👇
-    // BORRÁ CUALQUIER LÍNEA QUE DIGA "alert(...)" ACÁ.
-    // Solo dejá el console.log o nada.
-    
     console.log("Error de conexión silencioso (para no molestar al usuario).");
-    
-    throw error; // Lanzamos el error para que React lo maneje internamente, pero SIN CARTEL.
+    throw error; 
   }
 };
 
@@ -46,7 +40,7 @@ export const api = {
     } catch (e) { return null; }
   },
 
-  // --- USUARIOS Y PERFIL (ESTO ES LO QUE TE FALTABA) ---
+  // --- USUARIOS Y PERFIL ---
   
   // 1. Sincronizar (Login)
   sincronizarUsuario: async (user: any) => {
@@ -68,7 +62,7 @@ export const api = {
     }
   },
 
-  // 2. Actualizar Nombre (Perfil) - AHORA SÍ ESTÁ DENTRO DE 'api'
+  // 2. Actualizar Nombre (Perfil)
   actualizarNombreUsuario: async (uid: string, nuevoNombre: string) => {
     const response = await fetch(`${API_URL}/usuarios/${uid}/nombre`, {
       method: 'PUT',
@@ -103,8 +97,8 @@ export const api = {
   },
 
   getPermisosUsuario: async (uidOpcional?: string) => {
-    const idParaBuscar = uidOpcional || getDeviceId(); // 👈 LÓGICA CLAVE
-    console.log("🔍 Buscando permisos para:", idParaBuscar); // Para depurar
+    const idParaBuscar = uidOpcional || getDeviceId(); 
+    console.log("🔍 Buscando permisos para:", idParaBuscar); 
     const response = await safeFetch(`/usuarios/${idParaBuscar}/permisos`);
     return await response.json();
   },
@@ -256,4 +250,27 @@ export const api = {
     });
     return response.json();
   },
+
+  // 👇👇👇 FUNCIÓN CORREGIDA PARA FIREBASE 👇👇👇
+  actualizarUsuario: async (uid: string, datos: any) => {
+      try {
+        console.log("💾 Guardando en Firestore:", uid, datos);
+        
+        // Creamos la referencia al documento
+        // ⚠️ Chequeá si tu colección en Firebase se llama "users" o "usuarios"
+        const userRef = doc(db, "usuarios", uid);
+
+        // setDoc con merge: true es lo más seguro.
+        // Si el usuario no existe, lo crea. Si existe, solo actualiza los campos.
+        await setDoc(userRef, datos, { merge: true });
+        
+        console.log("🔥 ¡Usuario actualizado en Firebase correctamente!");
+        return true;
+
+      } catch (error) {
+        console.error("❌ Error guardando en Firebase:", error);
+        // No lanzamos error para no romper la app, solo avisamos en consola
+        return false;
+      }
+  }
 };

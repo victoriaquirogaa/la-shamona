@@ -1,13 +1,13 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { Capacitor } from '@capacitor/core';
-import { Purchases } from '@revenuecat/purchases-capacitor'; 
+import { Purchases, LOG_LEVEL } from '@revenuecat/purchases-capacitor'; 
 import Swal from 'sweetalert2';
 import { api } from '../lib/api';
 import { useAuth } from './AuthContext';
 
 // --- CONFIGURACIÓN DE REVENUECAT ---
 const API_KEYS = {
-  apple: "appl_TuClaveDeAppleAqui",
+  apple: "appl_TuClaveDeAppleAqui", 
   google: "goog_JdVFnPRWKpBTBOnxWVdfsyFILZz" // Tu clave real
 };
 
@@ -44,61 +44,66 @@ export const SubscriptionProvider = ({ children }: { children: ReactNode }) => {
         ? API_KEYS.google 
         : API_KEYS.apple;
 
-      console.log("🔧 Inicializando RevenueCat con:", apiKey);
+      console.log("🔧 Inicializando RevenueCat...");
 
       // @ts-ignore
       await Purchases.configure({ apiKey });
       
       // @ts-ignore
-      await Purchases.setLogLevel("DEBUG"); 
+      await Purchases.setLogLevel(LOG_LEVEL.DEBUG); 
     };
     
     initRC();
   }, []);
 
-  // 2. CHECK SUBSCRIPTION
+  // 2. CHECK SUBSCRIPTION (LÓGICA BLINDADA 🛡️)
   const checkSubscription = async () => {
     try {
       const idUsuario = user?.uid;
+      let esPremiumPorTienda = false; 
+
+      // 1. PREGUNTAR A REVENUECAT (Esto maneja los tiempos automáticamente)
+      try {
+          // @ts-ignore
+          const info: any = await Purchases.getCustomerInfo();
+          // Si RevenueCat dice que está activo, es porque NO pasaron las 24hs todavía
+          if (info?.entitlements?.active?.['premium']) { 
+              esPremiumPorTienda = true;
+          }
+      } catch (error) { console.warn("Error RC", error); }
+
+      // 2. PREGUNTAR A BASE DE DATOS (Solo para regalos manuales)
+      let perms = { es_amigo: false, acceso_vip: false, sin_anuncios: false, mix_sin_video: false };
+      try {
+           perms = await api.getPermisosUsuario(idUsuario);
+      } catch (e) { console.warn("Error API"); }
+
+      // 🚨 CAMBIO CLAVE AQUÍ 🚨
+      // Antes: Sumábamos todo.
+      // Ahora: Si pagó por tienda (24hs), manda la tienda.
+      // La BD solo la usamos si es un "Amigo" o un "VIP Manual" (acceso_vip).
       
-      if (idUsuario) {
-        // @ts-ignore
-        await Purchases.logIn(idUsuario);
-      }
-
-      const perms = await api.getPermisosUsuario(idUsuario);
-      console.log("🎟️ Permisos recibidos:", perms);
-
-      setSinAnuncios(perms.sin_anuncios);
-      setMixSinVideo(perms.mix_sin_video);
-      setAccesoVip(perms.acceso_vip);
+      const esVipManual = perms.acceso_vip || perms.es_amigo; 
       
-      const premiumReal = perms.es_premium || false;
-      setIsPremium(premiumReal);
+      // EL VEREDICTO FINAL:
+      const esPremiumFinal = esPremiumPorTienda || esVipManual;
 
-      if (perms.acceso_vip && !premiumReal) {
-         setEsAmigo(true);
-      } else {
-         setEsAmigo(perms.es_amigo || false);
-      }
+      // ACTUALIZAR ESTADOS
+      setIsPremium(esPremiumFinal);
+      setSinAnuncios(esPremiumFinal || perms.sin_anuncios);
+      setMixSinVideo(esPremiumFinal || perms.mix_sin_video);
+      setAccesoVip(esPremiumFinal); 
+      setEsAmigo(esVipManual);
 
     } catch (error) {
-      console.error("Error validando suscripción:", error);
-      setSinAnuncios(false);
-      setMixSinVideo(false);
-      setAccesoVip(false);
+      console.error(error);
       setIsPremium(false);
-      setEsAmigo(false);
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => {
-    checkSubscription();
-  }, [user]);
-
-  // 3. COMPRAR PREMIUM
+  // 3. COMPRAR PREMIUM (CORREGIDO)
   const comprarPremium = async (planId: string) => {
     try {
       Swal.fire({
@@ -110,21 +115,51 @@ export const SubscriptionProvider = ({ children }: { children: ReactNode }) => {
       // @ts-ignore
       const offerings = await Purchases.getOfferings();
       
-      // @ts-ignore
-      const paqueteAComprar = offerings.current?.availablePackages.find(
-        (pkg: any) => pkg.identifier === planId
-      );
+      // Buscamos el paquete en Current o en Default
+      let paqueteAComprar = null;
 
-      if (!paqueteAComprar) {
-        throw new Error(`No se encontró el plan: ${planId}. Revisá RevenueCat.`);
+      if (offerings.current) {
+        paqueteAComprar = offerings.current.availablePackages.find(
+          (pkg: any) => pkg.identifier === planId
+        );
+      } else if (offerings.all['default']) {
+         paqueteAComprar = offerings.all['default'].availablePackages.find(
+          (pkg: any) => pkg.identifier === planId
+        );
       }
 
+      if (!paqueteAComprar) {
+        throw new Error(`No se encontró el plan '${planId}' en RevenueCat.`);
+      }
+
+      console.log("📦 Comprando:", paqueteAComprar);
+
+      // 👇👇👇 AQUÍ ESTABA EL ERROR - SOLUCIÓN DEFINITIVA 👇👇👇
+      // La versión nueva EXIGE poner llaves y la palabra clave 'aPackage'
       // @ts-ignore
-      // 👇 ACÁ AGREGUÉ EL : any PARA QUE NO CHILLE
-      const { customerInfo }: any = await Purchases.purchasePackage(paqueteAComprar);
+      const { customerInfo } = await Purchases.purchasePackage({ aPackage: paqueteAComprar }); 
+      // 👆👆👆
 
       console.log("Compra exitosa:", customerInfo);
       
+      // 👇👇👇 AGREGÁ ESTO PARA ACTUALIZAR TU BASE DE DATOS 👇👇👇
+      try {
+          console.log("Guardando en base de datos...");
+          // Asumo que tu 'user.uid' es el ID del usuario
+          // Y que tenés un endpoint para actualizar (si no, hay que crearlo)
+          await api.actualizarUsuario(user.uid, { 
+              es_premium: true,
+              fecha_compra: new Date().toISOString(),
+              plan_id: planId
+          });
+          console.log("✅ Base de datos actualizada!");
+      } catch (errorBD) {
+          console.error("⚠️ El usuario pagó, pero falló al guardar en la BD:", errorBD);
+          // No bloqueamos al usuario, porque YA PAGÓ. 
+          // RevenueCat lo va a dejar pasar igual gracias a checkSubscription.
+      }
+      // 👆👆👆 FIN DEL AGREGADO 👆👆👆
+
       Swal.close();
       await checkSubscription(); 
 
@@ -149,14 +184,11 @@ export const SubscriptionProvider = ({ children }: { children: ReactNode }) => {
         Swal.fire({ title: 'Restaurando...', didOpen: () => Swal.showLoading() });
         
         // @ts-ignore
-        // 👇 ACÁ TAMBIÉN AGREGUÉ : any
         const customerInfo: any = await Purchases.restorePurchases();
-        
         await checkSubscription();
         
         Swal.close();
         
-        // Ahora como es 'any', TypeScript deja pasar 'entitlements'
         if (customerInfo?.entitlements?.active && Object.keys(customerInfo.entitlements.active).length > 0) {
             Swal.fire('Listo', 'Se recuperaron tus compras anteriores.', 'success');
         } else {
