@@ -134,7 +134,7 @@ export const LaJefa = ({ volver }: Props) => {
         let res;
         if (esMascota) {
           res = await api.asignarPuta(sala, carta.jugador, objetivo);
-          setMensajeResultado({ titulo: "👠 Nueva Mascota", cuerpo: res.mensaje, tipo: "success" });
+          setMensajeResultado({ titulo: "👠 Nueva Put@", cuerpo: res.mensaje, tipo: "success" });
         } else {
           res = await api.registrarTrago(sala, objetivo);
           if (res.toman && res.toman.length > 1) {
@@ -153,7 +153,7 @@ export const LaJefa = ({ volver }: Props) => {
                 tipo: "danger" 
              });
           } else {
-             setMensajeResultado({ titulo: "🍺 ¡FONDO BLANCO!", cuerpo: `Perdió ${objetivo}.`, tipo: "danger" });
+             setMensajeResultado({ titulo: "🍺 ¡Tomas!", cuerpo: `Perdió ${objetivo}.`, tipo: "danger" });
           }
         }
         setShowResultado(true);
@@ -231,7 +231,7 @@ export const LaJefa = ({ volver }: Props) => {
     <Container className="min-vh-100 d-flex flex-column align-items-center py-4 text-center position-relative">
       
       <div className="w-100 d-flex justify-content-between align-items-center mb-4 px-3" style={{maxWidth: '500px'}}>
-        <div className="titulo-neon fs-4 m-0">LA JEFA</div>
+        <div className="titulo-neon fs-4 m-0">LA PUT@</div>
         <button className="btn btn-sm btn-outline-light rounded-pill px-3" onClick={manejarSalidaJuego}>SALIR</button>
       </div>
 
@@ -285,7 +285,7 @@ export const LaJefa = ({ volver }: Props) => {
           {carta && carta.accion_requerida !== 'NINGUNA' && carta.accion_requerida !== 'INICIAR_DEDITO' ? (
             <div style={{maxWidth: '500px'}} className="w-100 px-3 animate-in slide-up">
               <div className="badge bg-warning text-dark mb-3 w-100 p-3 fs-6 fw-bold shadow">
-                {carta.accion_requerida === 'ELEGIR_PUTA' ? '👉 ELIGE A TU NUEVA MASCOTA' : '👇 ¿QUIÉN PERDIÓ?'}
+                {carta.accion_requerida === 'ELEGIR_PUTA' ? '👉 ELIGE A TU NUEVA PUT@' : '👇 ¿QUIÉN PERDIÓ?'}
               </div>
               <Row className="g-2">
                 {(carta.datos_extra?.opciones || jugadores).map((nombre: string) => (

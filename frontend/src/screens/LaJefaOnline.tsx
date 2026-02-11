@@ -174,7 +174,7 @@ export const LaJefaOnline = ({ datos, salir, volver }: Props) => {
       if (modoSeleccion === 'VICTIMA') await api.reportarTragoOnline(datos.codigo, jugador);
       else {
           await api.asignarPutaOnline(datos.codigo, datos.nombre, jugador);
-          Swal.fire({ title: '¡Asignada!', text: `${jugador} ahora es tu mascota 🐕`, icon: 'success', timer: 2000, showConfirmButton: false });
+          Swal.fire({ title: '¡Asignada!', text: `${jugador} ahora es tu put@ 🐕`, icon: 'success', timer: 2000, showConfirmButton: false });
       }
   };
 

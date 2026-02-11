@@ -40,7 +40,7 @@ export const MenuOffline = ({ irA, volver }: Props) => {
                     style={{color: 'var(--neon-pink)', borderColor: 'var(--neon-pink)'}}
                     onClick={() => irA('lajefa')}
                 >
-                    👠 LA JEFA
+                    👠 LA PUT@
                 </button>
 
                 {/* 2. PEAJE (Botón Neón Naranja/Amarillo) */}
