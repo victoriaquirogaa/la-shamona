@@ -298,7 +298,7 @@ export const MenuOnline = ({ volver, onJuegoIniciado, datosSesion }: Props) => {
                     
                     {/* LA JEFA */}
                     <button className="btn-neon-secondary py-3 fw-bold" style={{color: 'var(--neon-pink)', borderColor: 'var(--neon-pink)'}} onClick={iniciarLaJefa}>
-                        👠 LA JEFA
+                        👠 LA PUT@
                     </button>
 
                     {/* IMPOSTOR */}
