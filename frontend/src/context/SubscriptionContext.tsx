@@ -37,20 +37,31 @@ export const SubscriptionProvider = ({ children }: { children: ReactNode }) => {
   const [esAmigo, setEsAmigo] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  // 1. INICIALIZAR REVENUECAT
+ // 1. INICIALIZAR REVENUECAT
   useEffect(() => {
     const initRC = async () => {
-      const apiKey = Capacitor.getPlatform() === 'android' 
-        ? API_KEYS.google 
-        : API_KEYS.apple;
+      // 👇 1. Frenamos el código si estamos en la web para que no explote
+      if (Capacitor.getPlatform() === 'web') {
+        console.log("🌐 Modo Web detectado. Saltando inicialización de RevenueCat.");
+        return; 
+      }
 
-      console.log("🔧 Inicializando RevenueCat...");
+      // 👇 2. Si es un celular (Android/iOS), lo intentamos cargar de forma segura
+      try {
+        const apiKey = Capacitor.getPlatform() === 'android' 
+          ? API_KEYS.google 
+          : API_KEYS.apple;
 
-      // @ts-ignore
-      await Purchases.configure({ apiKey });
-      
-      // @ts-ignore
-      await Purchases.setLogLevel(LOG_LEVEL.DEBUG); 
+        console.log("🔧 Inicializando RevenueCat...");
+
+        // @ts-ignore
+        await Purchases.configure({ apiKey });
+        
+        // @ts-ignore
+        await Purchases.setLogLevel(LOG_LEVEL.DEBUG); 
+      } catch (error) {
+        console.warn("⚠️ Error inicializando RevenueCat:", error);
+      }
     };
     
     initRC();
@@ -201,6 +212,17 @@ export const SubscriptionProvider = ({ children }: { children: ReactNode }) => {
         Swal.fire('Error', 'No se pudieron restaurar las compras.', 'error');
       }
   };
+
+  // 👇 5. EL DESPERTADOR CLAVE (AGREGÁ ESTO) 👇
+  useEffect(() => {
+    if (user && user.uid) {
+      console.log("👤 ¡Usuario detectado! Buscando permisos en BD para:", user.uid);
+      checkSubscription();
+    } else {
+      console.log("⏳ Esperando que alguien inicie sesión...");
+    }
+  }, [user]); 
+  // 👆 FIN DEL DESPERTADOR 👆
 
   return (
     <SubscriptionContext.Provider value={{ 
