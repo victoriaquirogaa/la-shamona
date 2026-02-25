@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request, Header, Depends
 from pydantic import BaseModel
 from database import db
 from firebase_admin import auth
@@ -196,10 +196,14 @@ def consultar_permisos(device_id: str):
     es_premium_real = False   # El que puso tarjeta
     es_amigo_activo = False   # El que usó código
     es_amigo_flag = False     # Guardamos el flag crudo para el frontend
+    acceso_vip_manual = False # 🚨 NUEVO: El permiso que vos ponés a mano en Firebase
     
     if doc.exists:
         data = doc.to_dict()
         es_premium_real = data.get("es_premium", False)
+        
+        # 👇 ACÁ LEEMOS SI LE DISTE VIP MANUALMENTE DESDE LA BD 👇
+        acceso_vip_manual = data.get("acceso_vip", False) 
         
         # Validar si el amigo sigue vigente
         es_amigo_flag = data.get("es_amigo", False)
@@ -218,22 +222,21 @@ def consultar_permisos(device_id: str):
 
     # --- LÓGICA DE PODERES ---
 
-    # 1. ¿Quién tiene acceso a Categorías VIP? (Premium + Amigos)
-    acceso_vip = es_premium_real or es_amigo_activo
+    # 1. ¿Quién tiene acceso a Categorías VIP? (Premium + Amigos + VIP MANUAL)
+    acceso_vip = es_premium_real or es_amigo_activo or acceso_vip_manual
 
-    # 2. ¿Quién se salva de los anuncios molestos al salir/cambiar turno? (Premium + Amigos)
-    sin_anuncios = es_premium_real or es_amigo_activo
+    # 2. ¿Quién se salva de los anuncios molestos? 
+    sin_anuncios = es_premium_real or es_amigo_activo or acceso_vip_manual
 
-    # 3. ¿Quién tiene el Mix desbloqueado SIN ver video? (SOLO PREMIUM REAL)
-    # El amigo (False) tendrá que ver video.
-    mix_sin_video = es_premium_real
+    # 3. ¿Quién tiene el Mix desbloqueado SIN ver video? 
+    mix_sin_video = es_premium_real or acceso_vip_manual
 
     return {
         "acceso_vip": acceso_vip,
         "sin_anuncios": sin_anuncios,
         "mix_sin_video": mix_sin_video,
         "es_premium": es_premium_real,
-        "es_amigo": es_amigo_activo  # <--- ✅ CORRECTO (Termina con 'o')
+        "es_amigo": es_amigo_activo  
     }
 
 # --- AUXILIAR PARA IMPORTAR EN OTROS ARCHIVOS ---
