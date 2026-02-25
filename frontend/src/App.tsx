@@ -5,7 +5,6 @@ import { SubscriptionProvider, useSubscription } from './context/SubscriptionCon
 import { Capacitor } from '@capacitor/core';
 import { AppTrackingTransparency } from 'capacitor-plugin-app-tracking-transparency';
 import { AdMob, BannerAdSize, BannerAdPosition } from '@capacitor-community/admob';
-import logo from './assets/logo.png';
 
 // PANTALLAS PRINCIPALES
 import { Welcome } from './screens/Welcome';
@@ -13,6 +12,7 @@ import { Home } from './screens/Home';
 import { MenuOffline } from './screens/MenuOffline';
 import { MenuOnline } from './screens/MenuOnline';
 import { Store } from './screens/Store';
+import BebidasScreen from './screens/Bebidas';
 
 // JUEGOS OFFLINE
 import { LaJefa } from './screens/LaJefa';
@@ -106,6 +106,7 @@ const AppController = () => {
     // NAVEGACIÓN
     case 'home': return <Home irA={setVista} />;
     case 'store': return <Store volver={() => setVista('home')} />;
+    case 'bebidas': return <BebidasScreen />;
     case 'menu-offline': return <MenuOffline irA={setVista} volver={() => setVista('home')} />;
     
     // OFFLINE

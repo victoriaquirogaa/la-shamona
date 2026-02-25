@@ -174,9 +174,12 @@ export const Home = ({ irA }: Props) => {
         >
             📱 JUGAR EN ESTE CELU
         </button>
-        <div className="opacity-50 mt-2">
-            <button className="btn btn-outline-secondary w-100 py-2 border-dashed" style={{cursor: 'not-allowed'}}>
-                🍹 Recetas de Tragos (Pronto)
+        <div className="mt-2">
+            <button 
+                className="btn btn-outline-info w-100 py-2 border-dashed" // Le puse un color 'info' para que destaque
+                onClick={() => irA('bebidas')} // 👈 ESTA ES LA MAGIA
+            >
+                🍹 Recetas de Tragos
             </button>
         </div>
       </div>
