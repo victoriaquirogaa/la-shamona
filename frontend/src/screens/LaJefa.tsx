@@ -28,6 +28,7 @@ export const LaJefa = ({ volver }: Props) => {
   const [showModalDedito, setShowModalDedito] = useState(false);
   
   const [showResultado, setShowResultado] = useState(false);
+  const [showReglas, setShowReglas] = useState(false);
   const [mensajeResultado, setMensajeResultado] = useState<MensajeEstado>({ titulo: "", cuerpo: "", tipo: "info" });
 
   // 📺 ESTADOS DE PUBLICIDAD
@@ -231,7 +232,16 @@ export const LaJefa = ({ volver }: Props) => {
     <Container className="min-vh-100 d-flex flex-column align-items-center py-4 text-center position-relative">
       
       <div className="w-100 d-flex justify-content-between align-items-center mb-4 px-3" style={{maxWidth: '500px'}}>
-        <div className="titulo-neon fs-4 m-0">LA PUT@</div>
+        <div className="d-flex align-items-center gap-2">
+            <div className="titulo-neon fs-4 m-0">LA PUT@</div>
+            <button 
+                className="btn btn-sm btn-outline-info rounded-circle d-flex align-items-center justify-content-center" 
+                style={{ width: '30px', height: '30px', padding: 0, fontSize: '1.2rem' }}
+                onClick={() => setShowReglas(true)}
+            >
+                ℹ️
+            </button>
+        </div>
         <button className="btn btn-sm btn-outline-light rounded-pill px-3" onClick={manejarSalidaJuego}>SALIR</button>
       </div>
 
@@ -345,6 +355,32 @@ export const LaJefa = ({ volver }: Props) => {
           <div className="fw-light fs-5 w-100 text-white mb-4">{mensajeResultado.cuerpo}</div>
           <button className="btn-neon-secondary px-5" onClick={() => setShowResultado(false)}>CONTINUAR</button>
         </Modal.Body>
+      </Modal>
+
+      {/* === MODAL REGLAS === */}
+      <Modal show={showReglas} onHide={() => setShowReglas(false)} centered dialogClassName="modal-glass" scrollable>
+        <Modal.Header closeButton closeVariant="white" className="border-0 pb-0">
+          <Modal.Title className="fw-bold text-info w-100 text-center">📜 REGLAS DEL JUEGO</Modal.Title>
+        </Modal.Header>
+        <Modal.Body className="text-white text-start px-4">
+           <ul className="list-unstyled fs-6">
+              <li className="mb-3"><strong>1:</strong> 🍺 <strong>Tomás vos:</strong> Tomar un trago.</li>
+              <li className="mb-3"><strong>2:</strong> 👉 <strong>Elegís:</strong> Elegís quién toma un trago.</li>
+              <li className="mb-3"><strong>3:</strong> 🍻 <strong>Toman todos:</strong> Toman todos un trago.</li>
+              <li className="mb-3"><strong>4:</strong> 🥝 <strong>Kiwi:</strong> Empieza a contar kiwis el que saca. Ej: "1 kiwi", el siguiente "1 kiwi, 2 kiwis", y así hasta que alguien se equivoque.</li>
+              <li className="mb-3 text-warning"><strong>5:</strong> 👠 <strong>La Puta:</strong> Elegís a alguien. Esa persona toma cada vez que te toque tomar a vos.</li>
+              <li className="mb-3"><strong>6:</strong> 🍋 <strong>Limón:</strong> Se enumeran desde el que saca (1 Limón). El turno es: "[Tu N°] limón, medio limón, [N° a pasar] limones". Ej: el 1 dice "1 limón, medio limón, 3 limones". El 3 responde "3 limones, medio limón, 2 limones". Pierde el que se equivoca.</li>
+              <li className="mb-3"><strong>7:</strong> ⛵ <strong>Barquito Peruano:</strong> El que saca dice una categoría (ej: "colores"). En ronda dicen elementos de esa categoría hasta que alguien repita o se quede en blanco.</li>
+              <li className="mb-3"><strong>8:</strong> 🏛️ <strong>Palito:</strong> Contar en números romanos en ronda ("palito", "palito palito", "palito palito palito", "palito ve", "ve"). Pierde el que se confunde.</li>
+              <li className="mb-3"><strong>9:</strong> 🔢 <strong>1 al 10:</strong> Cuentan del 1 al 10 en ronda. Al llegar al 11, esa persona cambia un número por una palabra. En la siguiente ronda se usa la palabra. Los cambios son acumulativos.</li>
+              <li className="mb-3"><strong>10:</strong> 👆 <strong>Dedito:</strong> Tenés hasta tu próximo turno para poner el dedo en el vaso sin avisar. El último en darse cuenta y ponerlo, pierde. (Usá el botón en pantalla para marcar quién perdió).</li>
+              <li className="mb-3"><strong>11:</strong> 🗣️ <strong>Querés un ki:</strong> J1 a J2: "¿Querés un ki?". J2 a J1: "¿Un qué?". J1 a J2: "Un ki". Luego J2 le pregunta a un J3, el J3 pregunta "¿Un qué?" a J2, J2 a J1, J1 responde a J2, J2 a J3. Cadena acumulativa hacia atrás.</li>
+              <li className="mb-3"><strong>12:</strong> 🛑 <strong>Zafaron:</strong> No toma nadie.</li>
+           </ul>
+        </Modal.Body>
+        <Modal.Footer className="border-0 justify-content-center pt-0">
+          <button className="btn-neon-secondary px-5 py-2" onClick={() => setShowReglas(false)}>¡ENTENDIDO! 🍻</button>
+        </Modal.Footer>
       </Modal>
 
     </Container>

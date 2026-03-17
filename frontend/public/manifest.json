@@ -1,0 +1,15 @@
+{
+  "name": "El Viajero",
+  "short_name": "El Viajero",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#000000",
+  "theme_color": "#000000",
+  "icons": [
+    {
+      "src": "/logo-cuadrado.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
