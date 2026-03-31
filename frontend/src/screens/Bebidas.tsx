@@ -40,12 +40,10 @@ const Bebidas: React.FC<BebidasProps> = ({ volver }) => {
       try {
         const querySnapshot = await getDocs(collection(db, 'bebidas'));
         const bebidasData: Cocktail[] = [];
-        const tipos = new Set<string>();
-        
+
         querySnapshot.forEach((doc) => {
           const data = doc.data();
           const category = data.categoria || data.category || (data.alcohol_tipo ? data.alcohol_tipo[0] : 'Varios');
-          tipos.add(category);
           
           bebidasData.push({
             id: doc.id,
@@ -63,9 +61,8 @@ const Bebidas: React.FC<BebidasProps> = ({ volver }) => {
           });
         });
 
-        const finalData = bebidasData.length > 0 ? bebidasData : [];
-        setAllCocktails(finalData);
-        setCocktails(finalData);
+        setAllCocktails(bebidasData);
+        setCocktails(bebidasData);
         
         if (user?.uid) {
           await cargarLikesYSaves(user.uid);
@@ -147,10 +144,10 @@ const Bebidas: React.FC<BebidasProps> = ({ volver }) => {
       return;
     }
 
-    const query = searchQuery.toLowerCase();
-    const results = allCocktails.filter(c => 
-      c.name.toLowerCase().includes(query) || 
-      (c.category || '').toLowerCase().includes(query)
+    const searchTerm = searchQuery.toLowerCase();
+    const results = allCocktails.filter(c =>
+      c.name.toLowerCase().includes(searchTerm) ||
+      (c.category || '').toLowerCase().includes(searchTerm)
     );
     setCocktails(results);
     setIsSearching(false);
@@ -378,19 +375,6 @@ const Bebidas: React.FC<BebidasProps> = ({ volver }) => {
         {/* 🔥 PANTALLA FEED: ESTILO TINDER/REELS FULL-SCREEN SNAP 🔥 */}
         {currentScreen === AppScreen.FEED && (
           <div className="h-full flex flex-col">
-            {/* Header con botón menú */}
-            <div className="px-6 pt-4 pb-2 flex items-center justify-between border-b border-white/5">
-              <button
-                onClick={() => volver?.()}
-                className="flex items-center gap-2 text-purple-400 hover:text-purple-300 transition-colors"
-              >
-                <span className="material-symbols-outlined">arrow_back</span>
-                <span className="text-sm font-semibold">Menú</span>
-              </button>
-              <h2 className="text-lg font-bold text-white">Tragos</h2>
-              <div className="w-12"></div>
-            </div>
-
             {/* Botón de Filtros Avanzados */}
             <div className="px-6 pt-4 pb-2 border-b border-white/5">
               <button
@@ -516,7 +500,7 @@ const Bebidas: React.FC<BebidasProps> = ({ volver }) => {
 
         {/* OTRAS PANTALLAS (Le pasamos allCocktails para que funcione el filtro) */}
         {currentScreen === AppScreen.FAVORITES && <FavoritesView onCocktailClick={openRecipe} savedIds={savedIds} allCocktails={allCocktails} />}
-        {currentScreen === AppScreen.TOP && <TopView onCocktailClick={openRecipe} onSearchClick={() => setCurrentScreen(AppScreen.SEARCH)} onBackClick={() => setCurrentScreen(AppScreen.FEED)} allCocktails={allCocktails} />}
+        {currentScreen === AppScreen.TOP && <TopView onCocktailClick={openRecipe} allCocktails={allCocktails} />}
       </main>
 
       {/* BARRA DE NAVEGACIÓN INFERIOR */}
