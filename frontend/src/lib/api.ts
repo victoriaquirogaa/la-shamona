@@ -2,7 +2,7 @@ import { auth } from "../lib/firebase";
 
 // 🏠 LOCAL: Usar para desarrollo y ver imágenes locales (Fernet)
 // export const API_URL = "https://viajero-backend-x42g.onrender.com"; // PROD
-export const API_URL = "http://localhost:5183"; // LOCAL
+export const API_URL = "http://localhost:8000"; // LOCAL
 
 const safeFetch = async (endpoint: string, options?: RequestInit) => {
   const fullUrl = `${API_URL}${endpoint}`;
@@ -116,6 +116,18 @@ export const api = {
   getFraseYoNunca: async (cat: string, esPremium: boolean = false) => (await safeFetch(`/juegos/yo-nunca/${cat}?es_premium=${esPremium}`)).json(),
   getFraseVotacion: async (cat: string, esPremium: boolean = false) => (await safeFetch(`/juegos/votacion/rapido/${cat}?es_premium=${esPremium}`)).json(),
   getPregunta: async (cat: string, esPremium: boolean = false) => (await safeFetch(`/juegos/preguntas/${cat}?es_premium=${esPremium}`)).json(),
+
+  // --- MAZOS COMPLETOS (sin repetición) ---
+  getMazoYoNunca: async (cat: string, esPremium: boolean = false): Promise<string[]> => {
+    const res = await safeFetch(`/juegos/yo-nunca/mazo/${cat}?es_premium=${esPremium}`);
+    const data = await (res as Response).json();
+    return data?.frases ?? [];
+  },
+  getMazoPreguntas: async (cat: string, esPremium: boolean = false): Promise<string[]> => {
+    const res = await safeFetch(`/juegos/preguntas/mazo/${cat}?es_premium=${esPremium}`);
+    const data = await (res as Response).json();
+    return data?.frases ?? [];
+  },
 
   // Online (Simplificado para brevedad, mantener tu lógica original si la usas)
   crearSalaOnline: async (nombreHost: string) => (await safeFetch(`/juegos/online/crear`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ nombre_host: nombreHost }) })).json(),

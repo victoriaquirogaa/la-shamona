@@ -311,31 +311,31 @@ const Bebidas: React.FC<BebidasProps> = ({ volver }) => {
   }
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden bg-[#020617] text-white transition-colors duration-300">
+    <div className="flex flex-col bg-[#020617] text-white overflow-hidden" style={{ height: '100dvh' }}>
       
-      {/* HEADER */}
+      {/* HEADER — compacto, sin pt gigante */}
       {currentScreen !== AppScreen.RECIPE && (
-        <header className="px-6 pt-14 pb-4 flex items-center justify-between z-50 bg-[#020617]/80 backdrop-blur-md border-b border-white/5 shrink-0">
+        <header className="px-4 pt-3 pb-2 flex items-center justify-between shrink-0 bg-[#020617]/90 backdrop-blur-md border-b border-white/5">
           <button 
             onClick={goBack} 
-            className={`w-10 h-10 flex items-center justify-center rounded-full bg-white/5 border border-white/10 transition-opacity ${(currentScreen === AppScreen.FEED && !volver) ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
+            className={`w-9 h-9 flex items-center justify-center rounded-full bg-white/5 border border-white/10 transition-all active:scale-90 ${(currentScreen === AppScreen.FEED && !volver) ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
           >
-            <span className="material-symbols-outlined text-white">chevron_left</span>
+            <span className="material-symbols-outlined text-white" style={{ fontSize: '20px' }}>chevron_left</span>
           </button>
           
           <div className="flex items-center gap-2">
-            <span className="text-xl">🍹</span>
-            <h1 className="font-extrabold text-xl tracking-tight uppercase">Tragos</h1>
+            <span className="text-lg">🍹</span>
+            <h1 className="font-extrabold text-base tracking-tight uppercase">Tragos</h1>
           </div>
           
-          <button onClick={() => setCurrentScreen(AppScreen.SEARCH)} className="w-10 h-10 flex items-center justify-center rounded-full bg-white/5 border border-white/10 text-white active:scale-90 transition-transform">
-            <span className="material-symbols-outlined">search</span>
+          <button onClick={() => setCurrentScreen(AppScreen.SEARCH)} className="w-9 h-9 flex items-center justify-center rounded-full bg-white/5 border border-white/10 text-white active:scale-90 transition-transform">
+            <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>search</span>
           </button>
         </header>
       )}
 
-      {/* CONTENIDO PRINCIPAL */}
-      <main className="flex-1 relative overflow-hidden">
+      {/* CONTENIDO PRINCIPAL — flex-1 para que llene el espacio entre header y nav */}
+      <main className="flex-1 flex flex-col overflow-hidden relative">
         
         {/* PANTALLA: BÚSQUEDA */}
         {currentScreen === AppScreen.SEARCH && (
@@ -351,7 +351,7 @@ const Bebidas: React.FC<BebidasProps> = ({ volver }) => {
                   <p className="font-semibold text-slate-400 animate-pulse">Buscando en la barra...</p>
                 </div>
               ) : cocktails.length > 0 ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 pb-20">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 pb-6">
                   {cocktails.map(cocktail => (
                     <div key={cocktail.id} onClick={() => openRecipe(cocktail)} className="bg-white/5 p-4 rounded-3xl flex gap-4 cursor-pointer active:scale-95 transition-transform border border-white/5 hover:bg-white/10">
                       <img src={cocktail.image} className="w-20 h-20 rounded-2xl object-cover" alt={cocktail.name} />
@@ -375,107 +375,48 @@ const Bebidas: React.FC<BebidasProps> = ({ volver }) => {
           </div>
         )}
 
-        {/* 🔥 PANTALLA FEED: ESTILO TINDER/REELS FULL-SCREEN SNAP 🔥 */}
+        {/* FEED — Carrusel horizontal tipo Tinder */}
         {currentScreen === AppScreen.FEED && (
-          <div className="h-full flex flex-col">
-            {/* Header con botón menú */}
-            <div className="px-6 pt-4 pb-2 flex items-center justify-between border-b border-white/5">
-              <button
-                onClick={() => volver?.()}
-                className="flex items-center gap-2 text-purple-400 hover:text-purple-300 transition-colors"
-              >
-                <span className="material-symbols-outlined">arrow_back</span>
-                <span className="text-sm font-semibold">Menú</span>
-              </button>
-              <h2 className="text-lg font-bold text-white">Tragos</h2>
-              <div className="w-12"></div>
-            </div>
+          <div className="flex-1 flex flex-col overflow-hidden">
 
-            {/* Botón de Filtros Avanzados */}
-            <div className="px-6 pt-4 pb-2 border-b border-white/5">
+            {/* Filtros */}
+            <div className="px-4 pt-2 pb-2 border-b border-white/5 shrink-0">
               <button
                 onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
-                className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold bg-white/5 border border-white/10 text-slate-300 hover:bg-white/10 transition-all"
+                className="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold bg-white/5 border border-white/10 text-slate-300 hover:bg-white/10 transition-all"
               >
-                <span className="material-symbols-outlined text-lg">tune</span>
+                <span className="material-symbols-outlined text-base">tune</span>
                 Filtros
-                <span className={`material-symbols-outlined text-lg transition-transform ${showAdvancedFilters ? 'rotate-180' : ''}`}>expand_more</span>
+                <span className={`material-symbols-outlined text-base transition-transform ${showAdvancedFilters ? 'rotate-180' : ''}`}>expand_more</span>
               </button>
 
-              {/* Filtros Desplegables */}
               {showAdvancedFilters && (
-                <div className="mt-4 space-y-4 pb-4">
-                  {/* Dificultad */}
+                <div className="mt-3 space-y-3 pb-2">
                   <div>
-                    <p className="text-xs font-bold text-slate-400 mb-2 uppercase">Dificultad</p>
+                    <p className="text-xs font-bold text-slate-400 mb-1.5 uppercase">Dificultad</p>
                     <div className="flex gap-2">
                       {['Fácil', 'Medio', 'Difícil'].map(diff => (
-                        <button
-                          key={diff}
-                          onClick={() => handleDifficultyFilter(selectedDifficulty === diff ? null : diff)}
-                          className={`flex-1 px-3 py-2 rounded-lg text-xs font-semibold transition-all border ${
-                            selectedDifficulty === diff
-                              ? 'bg-green-600/80 text-white border-green-500'
-                              : 'bg-white/5 text-slate-400 border-white/10 hover:bg-white/10'
-                          }`}
-                        >
+                        <button key={diff} onClick={() => handleDifficultyFilter(selectedDifficulty === diff ? null : diff)}
+                          className={`flex-1 px-2 py-1.5 rounded-lg text-xs font-semibold transition-all border ${selectedDifficulty === diff ? 'bg-green-600/80 text-white border-green-500' : 'bg-white/5 text-slate-400 border-white/10'}`}>
                           {diff}
                         </button>
                       ))}
                     </div>
                   </div>
-
-                  {/* ABV */}
                   <div>
-                    <p className="text-xs font-bold text-slate-400 mb-2 uppercase">Graduación Alcohólica</p>
+                    <p className="text-xs font-bold text-slate-400 mb-1.5 uppercase">Graduación</p>
                     <div className="flex gap-2">
-                      {[{ label: 'Bajo (<15%)', val: 'bajo' }, { label: 'Medio (15-30%)', val: 'medio' }, { label: 'Alto (>30%)', val: 'alto' }].map(abv => (
-                        <button
-                          key={abv.val}
-                          onClick={() => handleAbvFilter(selectedAbvRange === abv.val ? null : abv.val)}
-                          className={`flex-1 px-3 py-2 rounded-lg text-xs font-semibold transition-all border ${
-                            selectedAbvRange === abv.val
-                              ? 'bg-orange-600/80 text-white border-orange-500'
-                              : 'bg-white/5 text-slate-400 border-white/10 hover:bg-white/10'
-                          }`}
-                        >
+                      {[{ label: '<15%', val: 'bajo' }, { label: '15-30%', val: 'medio' }, { label: '>30%', val: 'alto' }].map(abv => (
+                        <button key={abv.val} onClick={() => handleAbvFilter(selectedAbvRange === abv.val ? null : abv.val)}
+                          className={`flex-1 px-2 py-1.5 rounded-lg text-xs font-semibold transition-all border ${selectedAbvRange === abv.val ? 'bg-orange-600/80 text-white border-orange-500' : 'bg-white/5 text-slate-400 border-white/10'}`}>
                           {abv.label}
                         </button>
                       ))}
                     </div>
                   </div>
-
-                  {/* Sabor */}
-                  <div>
-                    <p className="text-xs font-bold text-slate-400 mb-2 uppercase">Sabor</p>
-                    <div className="flex gap-2">
-                      {['Dulce', 'Amargo'].map(taste => (
-                        <button
-                          key={taste}
-                          onClick={() => handleTasteFilter(selectedTaste === taste.toLowerCase() ? null : taste.toLowerCase())}
-                          className={`flex-1 px-3 py-2 rounded-lg text-xs font-semibold transition-all border ${
-                            selectedTaste === taste.toLowerCase()
-                              ? 'bg-pink-600/80 text-white border-pink-500'
-                              : 'bg-white/5 text-slate-400 border-white/10 hover:bg-white/10'
-                          }`}
-                        >
-                          {taste}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Botón Limpiar Filtros */}
                   {(selectedDifficulty || selectedAbvRange || selectedTaste) && (
-                    <button
-                      onClick={() => {
-                        setSelectedDifficulty(null);
-                        setSelectedAbvRange(null);
-                        setSelectedTaste(null);
-                        applyAllFilters(null, null, null);
-                      }}
-                      className="w-full px-3 py-2 rounded-lg text-xs font-semibold bg-white/5 border border-white/10 text-slate-400 hover:bg-white/10 transition-all"
-                    >
+                    <button onClick={() => { setSelectedDifficulty(null); setSelectedAbvRange(null); setSelectedTaste(null); applyAllFilters(null, null, null); }}
+                      className="w-full px-2 py-1.5 rounded-lg text-xs font-semibold bg-white/5 border border-white/10 text-slate-400 transition-all">
                       Limpiar filtros
                     </button>
                   )}
@@ -483,27 +424,24 @@ const Bebidas: React.FC<BebidasProps> = ({ volver }) => {
               )}
             </div>
             
-            {/* Contenedor Carrusel Horizontal (Snap) */}
-            <div className="flex-1 flex overflow-x-auto no-scrollbar snap-x snap-mandatory pt-2 scroll-smooth">
+            {/* Cards — scroll horizontal snap, cada card ocupa toda la pantalla */}
+            <div className="flex-1 flex overflow-x-auto no-scrollbar snap-x snap-mandatory scroll-smooth">
               {cocktails.length > 0 ? (
                 cocktails.map(cocktail => (
-                  <div key={cocktail.id} className="w-full h-full flex-shrink-0 snap-center snap-always px-4 pb-28">
-                    <div className="w-full h-full relative group">
-                      <div className="absolute -inset-0.5 bg-gradient-to-r from-purple-600 to-pink-600 rounded-[32px] opacity-0 group-hover:opacity-30 transition duration-500 blur-lg"></div>
-                      <CocktailCard 
-                        cocktail={cocktail} 
-                        onClick={openRecipe} 
-                        isLiked={likedIds.has(cocktail.id)} 
-                        isSaved={savedIds.has(cocktail.id)} 
-                        onLike={() => toggleLike(cocktail.id)} 
-                        onSave={() => toggleSave(cocktail.id)} 
-                        onComment={() => setCommentCocktail(cocktail)} 
-                      />
-                    </div>
+                  <div key={cocktail.id} className="min-w-full h-full flex-shrink-0 snap-center snap-always p-3">
+                    <CocktailCard 
+                      cocktail={cocktail} 
+                      onClick={openRecipe} 
+                      isLiked={likedIds.has(cocktail.id)} 
+                      isSaved={savedIds.has(cocktail.id)} 
+                      onLike={() => toggleLike(cocktail.id)} 
+                      onSave={() => toggleSave(cocktail.id)} 
+                      onComment={() => setCommentCocktail(cocktail)} 
+                    />
                   </div>
                 ))
               ) : (
-                <div className="w-full flex items-center justify-center text-slate-500 pt-20">
+                <div className="min-w-full flex items-center justify-center text-slate-500">
                   <div className="text-center">
                     <span className="material-symbols-outlined text-5xl block mb-2 opacity-20">local_bar</span>
                     <p>No hay tragos con esos filtros.</p>
@@ -514,25 +452,24 @@ const Bebidas: React.FC<BebidasProps> = ({ volver }) => {
           </div>
         )}
 
-        {/* OTRAS PANTALLAS (Le pasamos allCocktails para que funcione el filtro) */}
         {currentScreen === AppScreen.FAVORITES && <FavoritesView onCocktailClick={openRecipe} savedIds={savedIds} allCocktails={allCocktails} />}
         {currentScreen === AppScreen.TOP && <TopView onCocktailClick={openRecipe} onSearchClick={() => setCurrentScreen(AppScreen.SEARCH)} onBackClick={() => setCurrentScreen(AppScreen.FEED)} allCocktails={allCocktails} />}
       </main>
 
-      {/* BARRA DE NAVEGACIÓN INFERIOR */}
+      {/* BARRA DE NAVEGACIÓN — shrink-0, parte del flujo normal, NUNCA flota sobre el contenido */}
       {currentScreen !== AppScreen.RECIPE && (
-        <nav className="glass-morphism border-t border-white/5 rounded-t-[32px] px-10 pt-4 pb-8 flex justify-between items-center z-50 absolute bottom-0 w-full safe-bottom shadow-[0_-10px_40px_rgba(0,0,0,0.5)] bg-[#020617]/90 backdrop-blur-xl">
-          <button onClick={() => setCurrentScreen(AppScreen.FEED)} className={`flex flex-col items-center gap-1 transition-colors ${currentScreen === AppScreen.FEED ? 'text-purple-500' : 'text-slate-400'}`}>
-            <span className={`material-symbols-outlined text-2xl ${currentScreen === AppScreen.FEED ? 'filled' : ''}`} style={currentScreen === AppScreen.FEED ? { fontVariationSettings: "'FILL' 1" } : {}}>explore</span>
-            <span className="text-[10px] font-bold uppercase tracking-wider">Explorar</span>
+        <nav className="shrink-0 border-t border-white/10 px-6 pt-2 pb-3 flex justify-around items-center bg-[#020617] z-50">
+          <button onClick={() => setCurrentScreen(AppScreen.FEED)} className={`flex flex-col items-center gap-0.5 px-5 py-1 rounded-xl transition-colors ${currentScreen === AppScreen.FEED ? 'text-purple-400' : 'text-slate-500'}`}>
+            <span className="material-symbols-outlined" style={{ fontSize: '22px', fontVariationSettings: currentScreen === AppScreen.FEED ? "'FILL' 1" : "'FILL' 0" }}>explore</span>
+            <span className="text-[9px] font-bold uppercase tracking-wider">Explorar</span>
           </button>
-          <button onClick={() => setCurrentScreen(AppScreen.TOP)} className={`flex flex-col items-center gap-1 transition-colors ${currentScreen === AppScreen.TOP ? 'text-purple-500' : 'text-slate-400'}`}>
-            <span className={`material-symbols-outlined text-2xl ${currentScreen === AppScreen.TOP ? 'filled' : ''}`} style={currentScreen === AppScreen.TOP ? { fontVariationSettings: "'FILL' 1" } : {}}>stars</span>
-            <span className="text-[10px] font-bold uppercase tracking-wider">Top</span>
+          <button onClick={() => setCurrentScreen(AppScreen.TOP)} className={`flex flex-col items-center gap-0.5 px-5 py-1 rounded-xl transition-colors ${currentScreen === AppScreen.TOP ? 'text-purple-400' : 'text-slate-500'}`}>
+            <span className="material-symbols-outlined" style={{ fontSize: '22px', fontVariationSettings: currentScreen === AppScreen.TOP ? "'FILL' 1" : "'FILL' 0" }}>stars</span>
+            <span className="text-[9px] font-bold uppercase tracking-wider">Top</span>
           </button>
-          <button onClick={() => setCurrentScreen(AppScreen.FAVORITES)} className={`flex flex-col items-center gap-1 transition-colors ${currentScreen === AppScreen.FAVORITES ? 'text-purple-500' : 'text-slate-400'}`}>
-            <span className={`material-symbols-outlined text-2xl ${currentScreen === AppScreen.FAVORITES ? 'filled' : ''}`} style={currentScreen === AppScreen.FAVORITES ? { fontVariationSettings: "'FILL' 1" } : {}}>bookmark</span>
-            <span className="text-[10px] font-bold uppercase tracking-wider">Guardados</span>
+          <button onClick={() => setCurrentScreen(AppScreen.FAVORITES)} className={`flex flex-col items-center gap-0.5 px-5 py-1 rounded-xl transition-colors ${currentScreen === AppScreen.FAVORITES ? 'text-purple-400' : 'text-slate-500'}`}>
+            <span className="material-symbols-outlined" style={{ fontSize: '22px', fontVariationSettings: currentScreen === AppScreen.FAVORITES ? "'FILL' 1" : "'FILL' 0" }}>bookmark</span>
+            <span className="text-[9px] font-bold uppercase tracking-wider">Guardados</span>
           </button>
         </nav>
       )}
@@ -545,7 +482,6 @@ const Bebidas: React.FC<BebidasProps> = ({ volver }) => {
           onClose={() => { 
             setCurrentScreen(AppScreen.FEED); 
             setOpenCommentsOnEntry(false);
-            // Refrescar la bebida cuando se cierra la receta
             refrescarBebida(selectedCocktail.id);
           }} 
           isLiked={likedIds.has(selectedCocktail.id)} 
@@ -555,7 +491,6 @@ const Bebidas: React.FC<BebidasProps> = ({ volver }) => {
         />
       )}
 
-      {/* 🔥 MODAL: COMENTARIOS (Se abre directo desde el feed) */}
       {commentCocktail && (
         <CommentsOverlay 
           onClose={() => setCommentCocktail(null)} 

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { Container, Spinner } from 'react-bootstrap';
 import { api } from '../lib/api';
 import '../App.css'; 
@@ -25,6 +25,11 @@ export const JuegoSimple = ({ juego, volver }: Props) => {
   
   const [mixDesbloqueado, setMixDesbloqueado] = useState(false);
   const [cargandoVideo, setCargandoVideo] = useState(false);
+
+  // 🃏 MAZO SIN REPETICIÓN (solo para yo-nunca y preguntas)
+  const mazoRef = useRef<string[]>([]);
+  const indiceRef = useRef<number>(0);
+  const usaMazo = juego === 'yo-nunca' || juego === 'preguntas';
 
   // CONFIGURACIÓN DE JUEGOS
   const config: any = {
@@ -83,32 +88,82 @@ export const JuegoSimple = ({ juego, volver }: Props) => {
       if (opcionId === 'mix' && !mixSinVideo && !mixDesbloqueado) {
           setCargandoVideo(true);
           await AdService.mirarVideoRecompensa(
-              () => { // GANA
+              async () => { // GANA
                   setMixDesbloqueado(true);
                   setModo('mix');
-                  sacarCarta('mix');
+                  await cargarMazoYComenzar('mix');
                   setCargandoVideo(false);
                   Swal.fire({ title: '¡Mix Activado!', icon: 'success', timer: 1500, showConfirmButton: false, background: '#222', color: '#fff'});
               },
-              () => { // FALLA
-                  // (Opcional: Si falla el video, igual se lo damos o no. Acá se lo damos por UX)
+              async () => { // FALLA
                   setMixDesbloqueado(true);
                   setModo('mix');
-                  sacarCarta('mix');
+                  await cargarMazoYComenzar('mix');
                   setCargandoVideo(false);
               }
           );
       } else {
           // C. ACCESO DIRECTO
           setModo(opcionId);
-          sacarCarta(opcionId);
+          await cargarMazoYComenzar(opcionId);
       }
   };
 
-  // 2️⃣ SACAR CARTA
+  // 2️⃣A CARGAR MAZO COMPLETO Y COMENZAR (yo-nunca y preguntas)
+  const cargarMazoYComenzar = async (categoria: string) => {
+    if (!usaMazo) {
+      sacarCarta(categoria);
+      return;
+    }
+    setLoading(true);
+    try {
+      let frases: string[] = [];
+      if (juego === 'yo-nunca') frases = await api.getMazoYoNunca(categoria, accesoVip);
+      else if (juego === 'preguntas') frases = await api.getMazoPreguntas(categoria, accesoVip);
+
+      if (!frases.length) {
+        setFrase('No hay cartas en este mazo.');
+        setLoading(false);
+        return;
+      }
+      mazoRef.current = frases;
+      indiceRef.current = 0;
+      setFrase(frases[0]);
+    } catch (e) {
+      setFrase('Error al cargar el mazo.');
+    }
+    setLoading(false);
+  };
+
+  // 2️⃣B SIGUIENTE CARTA DEL MAZO (sin repetir)
+  const siguienteDelMazo = async () => {
+    const mazo = mazoRef.current;
+    let siguiente = indiceRef.current + 1;
+
+    if (siguiente >= mazo.length) {
+      // Vuelta completa: mostrar mensaje, luego rebarajar
+      await Swal.fire({
+        title: '🔄 ¡Vuelta completa!',
+        text: 'Ya jugaron todas las cartas. Rebarajando...',
+        icon: 'success',
+        timer: 2000,
+        showConfirmButton: false,
+        background: '#212529',
+        color: '#fff'
+      });
+      // Rebarajar
+      const rebarajado = [...mazo].sort(() => Math.random() - 0.5);
+      mazoRef.current = rebarajado;
+      siguiente = 0;
+    }
+
+    indiceRef.current = siguiente;
+    setFrase(mazoRef.current[siguiente]);
+  };
+
+  // 2️⃣C SACAR CARTA (para votacion que no usa mazo)
   const sacarCarta = async (categoria: string) => {
     // A. ANUNCIOS INTERSTICIALES (Cada X cartas)
-    // Usamos 'sinAnuncios' (Amigos = True -> No ven anuncios)
     if (!sinAnuncios) {
         const nuevoContador = contadorAds + 1;
         if (nuevoContador >= FRECUENCIA_ANUNCIOS) {
@@ -122,18 +177,30 @@ export const JuegoSimple = ({ juego, volver }: Props) => {
     setLoading(true);
     let data;
     try {
-        // B. LLAMADA A LA API
-        // Pasamos 'accesoVip' como flag. 
-        // Si es Amigo (true), el backend deja pasar categorías VIP.
-        if (juego === 'yo-nunca') data = await api.getFraseYoNunca(categoria, accesoVip);
-        else if (juego === 'votacion') data = await api.getFraseVotacion(categoria, accesoVip);
-        else if (juego === 'preguntas') data = await api.getPregunta(categoria, accesoVip);
-        
+        if (juego === 'votacion') data = await api.getFraseVotacion(categoria, accesoVip);
         setFrase(data?.texto || data?.pregunta || "Error de conexión.");
     } catch (e) {
         setFrase("Error al buscar frase. Intenta de nuevo.");
     }
     setLoading(false);
+  };
+
+  // Handler del botón SIGUIENTE
+  const handleSiguiente = async () => {
+    if (!sinAnuncios) {
+        const nuevoContador = contadorAds + 1;
+        if (nuevoContador >= FRECUENCIA_ANUNCIOS) {
+            await AdService.mostrarIntersticial();
+            setContadorAds(0);
+        } else {
+            setContadorAds(nuevoContador);
+        }
+    }
+    if (usaMazo) {
+      await siguienteDelMazo();
+    } else {
+      await sacarCarta(modo!);
+    }
   };
 
   // --- VISTA 1: ELEGIR MODO ---
@@ -205,7 +272,7 @@ export const JuegoSimple = ({ juego, volver }: Props) => {
                 {config.titulo} {modo === 'mix' ? '(MIX)' : ''}
              </span>
          </div>
-         <button className="btn btn-sm btn-outline-light rounded-pill px-3" onClick={() => setModo(null)}>CAMBIAR</button>
+         <button className="btn btn-sm btn-outline-light rounded-pill px-3" onClick={() => { setModo(null); setProgreso(null); mazoRef.current = []; indiceRef.current = 0; }}>CAMBIAR</button>
       </div>
 
       <div 
@@ -240,6 +307,7 @@ export const JuegoSimple = ({ juego, volver }: Props) => {
             ATRÁS
         </button>
         
+
         <button 
             className="btn-neon-main flex-grow-1 fw-bold fs-5 py-3" 
             style={{
@@ -248,7 +316,7 @@ export const JuegoSimple = ({ juego, volver }: Props) => {
                 borderColor: config.color,
                 boxShadow: `0 0 15px ${config.color}80`
             }}
-            onClick={() => sacarCarta(modo!)} 
+            onClick={handleSiguiente} 
             disabled={loading}
         >
             {loading ? 'CARGANDO...' : 'SIGUIENTE ➔'}

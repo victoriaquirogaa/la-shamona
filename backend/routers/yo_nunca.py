@@ -2,11 +2,45 @@ from fastapi import APIRouter, HTTPException
 from database import db
 import random
 from models import JuegoCarta 
+from typing import List
 
 router = APIRouter()
 
 # Definimos cuáles categorías son de pago
 CATEGORIAS_VIP = ["hot"]
+
+# --- 🃏 MAZO COMPLETO (para que el frontend no repita) ---
+@router.get("/mazo/{categoria}")
+def obtener_mazo_completo(categoria: str, es_premium: bool = False) -> dict:
+    mazos_validos = {
+        "gratis": "yo_nunca_gratis",
+        "hot": "yo_nunca_hot"
+    }
+
+    todas_las_frases: List[str] = []
+
+    if categoria == "mix":
+        if not es_premium:
+            raise HTTPException(status_code=403, detail="El Mix de Yo Nunca es exclusivo Premium.")
+        for nombre_doc in mazos_validos.values():
+            try:
+                doc = db.collection('mazos').document(nombre_doc).get()
+                if doc.exists:
+                    todas_las_frases.extend(doc.to_dict().get('frases', []))
+            except Exception as e:
+                print(f"Error leyendo {nombre_doc}: {e}")
+    else:
+        if categoria not in mazos_validos:
+            raise HTTPException(status_code=400, detail="Categoría no válida.")
+        if categoria in CATEGORIAS_VIP and not es_premium:
+            raise HTTPException(status_code=403, detail="Categoría exclusiva Premium.")
+        doc = db.collection('mazos').document(mazos_validos[categoria]).get()
+        if not doc.exists:
+            raise HTTPException(status_code=404, detail=f"No se encontró el mazo {categoria}")
+        todas_las_frases = doc.to_dict().get('frases', [])
+
+    random.shuffle(todas_las_frases)
+    return {"frases": todas_las_frases, "total": len(todas_las_frases)}
 
 @router.get("/{categoria}")
 def sacar_carta(categoria: str, es_premium: bool = False): # 👈 Agregamos flag
