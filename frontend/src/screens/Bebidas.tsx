@@ -4,6 +4,7 @@ import TopView from '../components/TopView';
 import CocktailCard from '../components/CocktailCard';
 import RecipeDetail from '../components/RecipeDetail';
 import CommentsOverlay from '../components/CommentsOverlay';
+import TopBar from '../components/TopBar';
 import { Cocktail, AppScreen } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { db } from '../lib/firebase'; 
@@ -313,25 +314,17 @@ const Bebidas: React.FC<BebidasProps> = ({ volver }) => {
   return (
     <div className="flex flex-col bg-[#020617] text-white overflow-hidden" style={{ height: '100dvh' }}>
       
-      {/* HEADER — compacto, sin pt gigante */}
+      {/* TOPBAR — Componente unificado */}
       {currentScreen !== AppScreen.RECIPE && (
-        <header className="px-4 pt-3 pb-2 flex items-center justify-between shrink-0 bg-[#020617]/90 backdrop-blur-md border-b border-white/5">
-          <button 
-            onClick={goBack} 
-            className={`w-9 h-9 flex items-center justify-center rounded-full bg-white/5 border border-white/10 transition-all active:scale-90 ${(currentScreen === AppScreen.FEED && !volver) ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
-          >
-            <span className="material-symbols-outlined text-white" style={{ fontSize: '20px' }}>chevron_left</span>
-          </button>
-          
-          <div className="flex items-center gap-2">
-            <span className="text-lg">🍹</span>
-            <h1 className="font-extrabold text-base tracking-tight uppercase">Tragos</h1>
-          </div>
-          
-          <button onClick={() => setCurrentScreen(AppScreen.SEARCH)} className="w-9 h-9 flex items-center justify-center rounded-full bg-white/5 border border-white/10 text-white active:scale-90 transition-transform">
-            <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>search</span>
-          </button>
-        </header>
+        <>
+          <TopBar 
+            titulo="TRAGOS" 
+            icono="🍹" 
+            color="#a855f7" 
+            onVolver={goBack} 
+          />
+          <div className="topbar-spacer" />
+        </>
       )}
 
       {/* CONTENIDO PRINCIPAL — flex-1 para que llene el espacio entre header y nav */}
