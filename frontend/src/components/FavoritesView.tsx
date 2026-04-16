@@ -9,11 +9,7 @@ interface FavoritesViewProps {
 
 const FavoritesView: React.FC<FavoritesViewProps> = ({ onCocktailClick, savedIds, allCocktails }) => {
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeFilter, setActiveFilter] = useState('Todo');
 
-  const filters = ['Todo', 'Favoritos', 'Para hacer'];
-  
-  // 🔥 AHORA FILTRA LOS TRAGOS REALES DE LA BASE DE DATOS
   const savedCocktails = allCocktails.filter(c => savedIds.has(c.id));
 
   return (
@@ -32,23 +28,6 @@ const FavoritesView: React.FC<FavoritesViewProps> = ({ onCocktailClick, savedIds
           </div>
         </div>
 
-        <div className="flex flex-col gap-3 pb-2">
-          <div className="flex gap-2 overflow-x-auto no-scrollbar -mx-5 px-5">
-            {filters.map(filter => (
-              <button 
-                key={filter}
-                onClick={() => setActiveFilter(filter)}
-                className={`px-5 py-2 rounded-full font-semibold text-sm whitespace-nowrap transition-all active:scale-95 ${
-                  activeFilter === filter 
-                    ? 'bg-purple-600 text-white shadow-lg shadow-purple-500/20 border border-purple-500' 
-                    : 'bg-white/5 text-slate-200 border border-white/10'
-                }`}
-              >
-                {filter}
-              </button>
-            ))}
-          </div>
-        </div>
       </header>
 
       <main className="flex-1 overflow-y-auto px-5 pt-4 pb-32 no-scrollbar">

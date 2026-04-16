@@ -29,22 +29,22 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({
     setCurrentCocktail(cocktail);
   }, [cocktail]);
 
+  const cargarCommentCount = async () => {
+    try {
+      const q = query(
+        collection(db, `bebidas/${cocktail.id}/comentarios`),
+        orderBy('timestamp', 'desc')
+      );
+      const querySnapshot = await getDocs(q);
+      setRealCommentCount(querySnapshot.size);
+    } catch (error) {
+      console.error('Error contando comentarios:', error);
+      setRealCommentCount(cocktail.comments || 0);
+    }
+  };
+
   // Cargar comentarios reales cuando se abre el overlay
   useEffect(() => {
-    const cargarCommentCount = async () => {
-      try {
-        const q = query(
-          collection(db, `bebidas/${cocktail.id}/comentarios`),
-          orderBy('timestamp', 'desc')
-        );
-        const querySnapshot = await getDocs(q);
-        setRealCommentCount(querySnapshot.size);
-      } catch (error) {
-        console.error('Error contando comentarios:', error);
-        setRealCommentCount(cocktail.comments || 0);
-      }
-    };
-
     if (isCommentsOpen) {
       cargarCommentCount();
     }
@@ -130,19 +130,6 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({
       
       {isCommentsOpen && <CommentsOverlay onClose={() => {
         setIsCommentsOpen(false);
-        // Recargar comentarios al cerrar para actualizar el contador
-        const cargarCommentCount = async () => {
-          try {
-            const q = query(
-              collection(db, `bebidas/${cocktail.id}/comentarios`),
-              orderBy('timestamp', 'desc')
-            );
-            const querySnapshot = await getDocs(q);
-            setRealCommentCount(querySnapshot.size);
-          } catch (error) {
-            console.error('Error contando comentarios:', error);
-          }
-        };
         cargarCommentCount();
       }} bebidaId={currentCocktail.id} />}
     </>
