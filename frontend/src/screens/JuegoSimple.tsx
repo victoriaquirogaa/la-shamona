@@ -272,7 +272,7 @@ export const JuegoSimple = ({ juego, volver }: Props) => {
                 {config.titulo} {modo === 'mix' ? '(MIX)' : ''}
              </span>
          </div>
-         <button className="btn btn-sm btn-outline-light rounded-pill px-3" onClick={() => { setModo(null); setProgreso(null); mazoRef.current = []; indiceRef.current = 0; }}>CAMBIAR</button>
+         <button className="btn btn-sm btn-outline-light rounded-pill px-3" onClick={() => { setModo(null); mazoRef.current = []; indiceRef.current = 0; }}>CAMBIAR</button>
       </div>
 
       <div 
