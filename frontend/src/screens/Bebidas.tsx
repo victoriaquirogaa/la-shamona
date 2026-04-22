@@ -35,49 +35,67 @@ const Bebidas: React.FC<BebidasProps> = ({ volver }) => {
   const [selectedAbvRange, setSelectedAbvRange] = useState<string | null>(null);
   const [selectedTaste, setSelectedTaste] = useState<string | null>(null);
 
-  // Cargar bebidas desde Firestore
+  // Cargar bebidas desde Firestore (con retry para ERR_QUIC_PROTOCOL_ERROR)
   useEffect(() => {
-    const cargarBebidas = async () => {
+    let cancelado = false;
+
+    const intentarCarga = async (intentos = 0): Promise<void> => {
+      if (cancelado) return;
       try {
         const querySnapshot = await getDocs(collection(db, 'bebidas'));
+        if (cancelado) return;
         const bebidasData: Cocktail[] = [];
 
         querySnapshot.forEach((doc) => {
           const data = doc.data();
-          const category = data.categoria || data.category || (data.alcohol_tipo ? data.alcohol_tipo[0] : 'Varios');
-          
+          // Los documentos tienen campos en inglés directamente
+          const category = data.category || data.categoria || (data.alcohol_tipo ? data.alcohol_tipo[0] : 'Varios');
+
           bebidasData.push({
-            id: doc.id,
-            name: data.nombre || data.name || 'Trago sin nombre',
-            description: data.descripcion || data.description || '',
-            image: data.imagen_url || data.image || 'https://images.unsplash.com/photo-1514362545857-3bc16c4c7d1b',
+            id: doc.id,  // Siempre usamos el ID del documento
+            name: data.name || data.nombre || 'Trago sin nombre',
+            description: data.description || data.descripcion || '',
+            image: data.image || data.imagen_url || 'https://images.unsplash.com/photo-1514362545857-3bc16c4c7d1b',
             rating: data.rating || 0,
-            abv: data.graduacion ? `${data.graduacion}%` : (data.abv || '0%'),
-            difficulty: data.dificultad || data.difficulty || 'Media',
+            abv: data.abv || (data.graduacion ? `${data.graduacion}%` : '0%'),
+            difficulty: data.difficulty || data.dificultad || 'Media',
             likes: data.likes || 0,
-            comments: typeof data.comments === 'string' ? parseInt(data.comments) || 0 : (data.comments || 0),
-            category: category,
-            ingredients: Array.isArray(data.ingredientes) ? data.ingredientes.map((i: any) => typeof i === 'string' ? { item: i, amount: '' } : i) : [],
-            instructions: data.pasos || data.instructions || []
+            comments: typeof data.comments === 'number' ? data.comments : (parseInt(String(data.comments)) || 0),
+            category,
+            ingredients: Array.isArray(data.ingredients)
+              ? data.ingredients.map((i: any) => typeof i === 'string' ? { item: i, amount: '' } : i)
+              : (Array.isArray(data.ingredientes)
+                  ? data.ingredientes.map((i: any) => typeof i === 'string' ? { item: i, amount: '' } : i)
+                  : []),
+            instructions: data.instructions || data.pasos || []
           });
         });
 
+
         setAllCocktails(bebidasData);
         setCocktails(bebidasData);
-        
+
         if (user?.uid) {
           await cargarLikesYSaves(user.uid);
         }
-      } catch (error) {
+      } catch (error: any) {
+        // Retry automático para errores de red QUIC/conexión (máx 3 intentos)
+        const esErrorDeRed = error?.code === 'unavailable' || String(error).includes('QUIC') || String(error).includes('network');
+        if (esErrorDeRed && intentos < 3 && !cancelado) {
+          console.warn(`Reintentando carga de bebidas (intento ${intentos + 1}/3)...`);
+          await new Promise(r => setTimeout(r, 1500 * (intentos + 1)));
+          return intentarCarga(intentos + 1);
+        }
         console.error('Error cargando bebidas:', error);
         setAllCocktails([]);
         setCocktails([]);
       } finally {
-        setLoading(false);
+        if (!cancelado) setLoading(false);
       }
     };
 
-    cargarBebidas();
+    intentarCarga();
+    return () => { cancelado = true; };
   }, [user?.uid]);
 
   const cargarLikesYSaves = async (uid: string) => {
@@ -104,7 +122,7 @@ const Bebidas: React.FC<BebidasProps> = ({ volver }) => {
       
       if (docSnap.exists()) {
         const data = docSnap.data();
-        const category = data.categoria || data.category || (data.alcohol_tipo ? data.alcohol_tipo[0] : 'Varios');
+        const category = data.category || data.categoria || (data.alcohol_tipo ? data.alcohol_tipo[0] : 'Varios');
         
         // Contar comentarios reales
         const q = query(collection(db, `bebidas/${bebidaId}/comentarios`));
@@ -113,18 +131,23 @@ const Bebidas: React.FC<BebidasProps> = ({ volver }) => {
         
         const bebidaActualizada: Cocktail = {
           id: docSnap.id,
-          name: data.nombre || data.name || 'Trago sin nombre',
-          description: data.descripcion || data.description || '',
-          image: data.imagen_url || data.image || 'https://images.unsplash.com/photo-1514362545857-3bc16c4c7d1b',
+          name: data.name || data.nombre || 'Trago sin nombre',
+          description: data.description || data.descripcion || '',
+          image: data.image || data.imagen_url || 'https://images.unsplash.com/photo-1514362545857-3bc16c4c7d1b',
           rating: data.rating || 0,
-          abv: data.graduacion ? `${data.graduacion}%` : (data.abv || '0%'),
-          difficulty: data.dificultad || data.difficulty || 'Media',
+          abv: data.abv || (data.graduacion ? `${data.graduacion}%` : '0%'),
+          difficulty: data.difficulty || data.dificultad || 'Media',
           likes: data.likes || 0,
           comments: realCommentCount,
-          category: category,
-          ingredients: Array.isArray(data.ingredientes) ? data.ingredientes.map((i: any) => typeof i === 'string' ? { item: i, amount: '' } : i) : [],
-          instructions: data.pasos || data.instructions || []
+          category,
+          ingredients: Array.isArray(data.ingredients)
+            ? data.ingredients.map((i: any) => typeof i === 'string' ? { item: i, amount: '' } : i)
+            : (Array.isArray(data.ingredientes)
+                ? data.ingredientes.map((i: any) => typeof i === 'string' ? { item: i, amount: '' } : i)
+                : []),
+          instructions: data.instructions || data.pasos || []
         };
+
         
         setCocktails(prev => prev.map(c => c.id === bebidaId ? bebidaActualizada : c));
         setAllCocktails(prev => prev.map(c => c.id === bebidaId ? bebidaActualizada : c));

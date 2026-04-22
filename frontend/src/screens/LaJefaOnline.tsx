@@ -2,9 +2,10 @@ import { useState, useEffect, useRef } from 'react';
 import { Container, Modal, Row, Col, Spinner, Badge } from 'react-bootstrap';
 import { api } from '../lib/api';
 import Swal from 'sweetalert2';
-import '../App.css'; 
+import '../App.css';
 import { AdService } from '../lib/AdMobUtils';
 import { useSubscription } from '../context/SubscriptionContext';
+import TopBar from '../components/TopBar';
 
 interface Props {
   datos: { codigo: string; nombre: string; soyHost: boolean };
@@ -185,10 +186,14 @@ export const LaJefaOnline = ({ datos, salir, volver }: Props) => {
   };
 
   return (
-    <Container className="min-vh-100 d-flex flex-column bg-dark text-white py-3 text-center position-relative">
+    <Container className="min-vh-100 d-flex flex-column bg-dark text-white py-0 text-center position-relative">
       
-      {/* HEADER */}
-      <div className="d-flex justify-content-between mb-3 px-2 align-items-center">
+      {/* TOPBAR UNIFICADO */}
+      <TopBar titulo="LA PUT@" icono="👠" color="var(--neon-pink)" onVolver={handleVolverAlLobby} />
+      <div className="topbar-spacer" />
+      
+      {/* BARRA SECUNDARIA: SALA + REGLAS + MENU */}
+      <div className="d-flex justify-content-between mb-3 px-3 align-items-center" style={{maxWidth: '600px', width: '100%', margin: '0 auto'}}>
          <div className="d-flex align-items-center gap-2">
              <div className="badge bg-secondary border border-secondary fw-normal fs-6">SALA: {datos.codigo}</div>
              <button 
@@ -200,7 +205,7 @@ export const LaJefaOnline = ({ datos, salir, volver }: Props) => {
              </button>
          </div>
          
-         {/* 👇 BOTÓN DE MENÚ (ENGRANAJE O "SALIR") */}
+         {/* 👇 BOTÓN DE MENú */}
          <button className="btn btn-sm btn-outline-light border-0" onClick={() => setShowMenuSalida(true)}>
             ⚙️ MENÚ
          </button>

@@ -7,6 +7,7 @@ import { Pie, Bar } from 'react-chartjs-2';
 import '../App.css'; 
 import { AdService } from '../lib/AdMobUtils';
 import { useSubscription } from '../context/SubscriptionContext'; 
+import TopBar from '../components/TopBar';
 
 // Registramos los componentes de los gráficos
 ChartJS.register(ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement);
@@ -120,12 +121,11 @@ export const VotacionOnline = ({ datos, salir, volver }: Props) => {
   };
 
   return (
-    <Container className="min-vh-100 py-4 d-flex flex-column align-items-center bg-dark text-white text-center p-3">
-      
-      {/* HEADER */}
-      <div className="w-100 d-flex justify-content-between align-items-center mb-5 px-2" style={{maxWidth: '600px'}}>
-           <div className="badge bg-transparent border border-info text-info px-3 py-2 rounded-pill fw-normal">{titulo?.toUpperCase()}</div>
-      </div>
+    <Container className="min-vh-100 py-0 d-flex flex-column align-items-center bg-dark text-white text-center p-0">
+      <TopBar titulo="VOTACIÓN" icono="🗣️" color="#bd00ff" onVolver={handleVolverAlLobby} />
+      <div className="topbar-spacer" />
+
+      <div className="w-100 px-3 d-flex flex-column align-items-center">
 
       {/* PREGUNTA */}
       <h2 className="titulo-neon display-5 mb-5 px-2 text-uppercase" style={{textShadow: '0 0 10px rgba(255,255,255,0.3)', color: 'white'}}>
@@ -214,6 +214,7 @@ export const VotacionOnline = ({ datos, salir, volver }: Props) => {
           )}
         </div>
       )}
+      </div>
     </Container>
   );
 };

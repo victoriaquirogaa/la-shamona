@@ -1,10 +1,11 @@
 import { useState, useRef } from 'react';
 import { Container, Spinner } from 'react-bootstrap';
 import { api } from '../lib/api';
-import '../App.css'; 
-import { AdService } from '../lib/AdMobUtils'; 
+import '../App.css';
+import { AdService } from '../lib/AdMobUtils';
 import Swal from 'sweetalert2';
-import { useSubscription } from '../context/SubscriptionContext'; 
+import { useSubscription } from '../context/SubscriptionContext';
+import TopBar from '../components/TopBar';
 
 interface Props {
   juego: 'yo-nunca' | 'votacion' | 'preguntas';
@@ -206,56 +207,41 @@ export const JuegoSimple = ({ juego, volver }: Props) => {
   // --- VISTA 1: ELEGIR MODO ---
   if (!modo) {
     return (
-      <Container className="d-flex flex-column justify-content-center align-items-center min-vh-100 text-center p-4">
-        
-        <div className="mb-5 animate-in fade-in">
-            <div style={{fontSize: '4rem'}} className="mb-2">{config.icono}</div>
-            <h1 className="titulo-neon m-0" style={{
-                background: `linear-gradient(90deg, ${config.color}, #ffffff)`,
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
-                textShadow: `0 0 20px ${config.color}50`
-            }}>
-                {config.titulo}
-            </h1>
-        </div>
+      <Container className="d-flex flex-column min-vh-100 text-center p-0">
+        <TopBar titulo={config.titulo} icono={config.icono} color={config.color} onVolver={volver} />
+        <div className="topbar-spacer" />
 
-        <div className="d-grid gap-3 w-100 animate-in slide-up" style={{maxWidth: '400px'}}>
-          {config.opciones.map((op: any) => {
-            const esMix = op.id === 'mix';
-            const esVipOnly = op.vipOnly; 
+        <div className="d-flex flex-column justify-content-center align-items-center flex-grow-1 p-4">
+          <div className="d-grid gap-3 w-100 animate-in slide-up" style={{maxWidth: '400px'}}>
+            {config.opciones.map((op: any) => {
+              const esMix = op.id === 'mix';
+              const esVipOnly = op.vipOnly; 
 
-            // 👇 LÓGICA VISUAL ACTUALIZADA
-            // Si es Mix, NO tengo mixSinVideo y NO lo desbloqueé -> Bloqueado (Muestra tele)
-            const mixBloqueado = esMix && !mixDesbloqueado && !mixSinVideo && !esVipOnly; 
-            // Si es VIP Only y NO tengo accesoVip -> Bloqueado (Candado)
-            const vipBloqueado = esVipOnly && !accesoVip;
+              const mixBloqueado = esMix && !mixDesbloqueado && !mixSinVideo && !esVipOnly; 
+              const vipBloqueado = esVipOnly && !accesoVip;
 
-            return (
-                <button 
-                    key={op.id} 
-                    className={`btn-neon-main py-3 fw-bold fs-5 ${esMix ? 'btn-mix' : ''}`} 
-                    style={{
-                        borderColor: esMix ? 'gold' : config.color, 
-                        color: esMix ? 'gold' : config.color,
-                        backgroundColor: (mixBloqueado || vipBloqueado) ? 'rgba(0,0,0,0.3)' : 'transparent',
-                        opacity: vipBloqueado ? 0.7 : 1
-                    }} 
-                    onClick={() => seleccionarModo(op)}
-                    disabled={cargandoVideo}
-                >
-                  {cargandoVideo && esMix ? <Spinner size="sm"/> : 
-                   vipBloqueado ? `🔒 ${op.label}` :
-                   mixBloqueado ? "📺 VER VIDEO PARA MIX" : 
-                   (esMix && mixSinVideo ? "✨ MIX (VIP)" : op.label)
-                  }
-                </button>
-            );
-          })}
-          
-          <button className="btn btn-link text-white-50 mt-3 text-decoration-none" onClick={volver}>
-              🡠 Volver al menú
-          </button>
+              return (
+                  <button 
+                      key={op.id} 
+                      className={`btn-neon-main py-3 fw-bold fs-5 ${esMix ? 'btn-mix' : ''}`} 
+                      style={{
+                          borderColor: esMix ? 'gold' : config.color, 
+                          color: esMix ? 'gold' : config.color,
+                          backgroundColor: (mixBloqueado || vipBloqueado) ? 'rgba(0,0,0,0.3)' : 'transparent',
+                          opacity: vipBloqueado ? 0.7 : 1
+                      }} 
+                      onClick={() => seleccionarModo(op)}
+                      disabled={cargandoVideo}
+                  >
+                    {cargandoVideo && esMix ? <Spinner size="sm"/> : 
+                     vipBloqueado ? `🔒 ${op.label}` :
+                     mixBloqueado ? "📺 VER VIDEO PARA MIX" : 
+                     (esMix && mixSinVideo ? "✨ MIX (VIP)" : op.label)
+                    }
+                  </button>
+              );
+            })}
+          </div>
         </div>
       </Container>
     );
@@ -263,17 +249,16 @@ export const JuegoSimple = ({ juego, volver }: Props) => {
 
   // --- VISTA 2: TARJETA DE JUEGO ---
   return (
-    <Container className="d-flex flex-column justify-content-center align-items-center min-vh-100 text-center p-4">
+    <Container className="d-flex flex-column min-vh-100 text-center p-0">
+      <TopBar 
+        titulo={`${config.titulo}${modo === 'mix' ? ' · MIX' : ''}`}
+        icono={config.icono} 
+        color={config.color} 
+        onVolver={() => { setModo(null); mazoRef.current = []; indiceRef.current = 0; }}
+      />
+      <div className="topbar-spacer" />
       
-      <div className="w-100 d-flex justify-content-between align-items-center mb-4 px-2 absolute-top-md" style={{maxWidth: '600px'}}>
-         <div className="d-flex align-items-center gap-2">
-             <span className="fs-4">{config.icono}</span>
-             <span className="fw-bold text-uppercase" style={{color: config.color, letterSpacing: '2px'}}>
-                {config.titulo} {modo === 'mix' ? '(MIX)' : ''}
-             </span>
-         </div>
-         <button className="btn btn-sm btn-outline-light rounded-pill px-3" onClick={() => { setModo(null); mazoRef.current = []; indiceRef.current = 0; }}>CAMBIAR</button>
-      </div>
+      <div className="d-flex flex-column justify-content-center align-items-center flex-grow-1 p-4">
 
       <div 
         className="card-shamona w-100 shadow-lg d-flex align-items-center justify-content-center p-4 p-md-5 mb-5 position-relative animate-in zoom-in" 
@@ -321,6 +306,7 @@ export const JuegoSimple = ({ juego, volver }: Props) => {
         >
             {loading ? 'CARGANDO...' : 'SIGUIENTE ➔'}
         </button>
+      </div>
       </div>
     </Container>
   );

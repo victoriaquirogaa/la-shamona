@@ -278,7 +278,37 @@ def actualizar_nombre_usuario(uid: str, datos: NombreUpdate):
         return {"error": str(e)}, 500
     
 # ==========================================
-#      NUEVAS FUNCIONES DE ELIMINACIÓN
+#      ACTUALIZACIÓN GENERAL DE USUARIO
+# ==========================================
+
+class UsuarioUpdateGeneral(BaseModel):
+    es_premium: bool | None = None
+    fecha_compra: str | None = None
+    plan_id: str | None = None
+    sin_anuncios: bool | None = None
+    mix_sin_video: bool | None = None
+
+@router.put("/{uid}/actualizar")
+def actualizar_usuario(uid: str, datos: UsuarioUpdateGeneral):
+    """
+    Actualiza campos generales del usuario (ej: después de una compra en RevenueCat).
+    Solo actualiza los campos que se envíen (merge=True).
+    """
+    try:
+        # Only include fields that were actually sent (not None)
+        update_data = {k: v for k, v in datos.dict().items() if v is not None}
+        if not update_data:
+            return {"status": "ok", "mensaje": "Nada que actualizar"}
+        
+        db.collection('usuarios').document(uid).set(update_data, merge=True)
+        return {"status": "ok", "mensaje": "Usuario actualizado"}
+    except Exception as e:
+        print(f"Error actualizando usuario {uid}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ==========================================
+#      FUNCIONES DE ELIMINACIÓN
 # ==========================================
 
 # --- 6. ELIMINAR MI CUENTA (Botón Rojo de la App) ---

@@ -2,9 +2,10 @@ import { useState, useEffect } from 'react';
 import { Container, Spinner } from 'react-bootstrap';
 import { api } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
-import { useSubscription } from '../context/SubscriptionContext'; 
-import { AdService } from '../lib/AdMobUtils'; 
-import '../App.css'; 
+import { useSubscription } from '../context/SubscriptionContext';
+import { AdService } from '../lib/AdMobUtils';
+import '../App.css';
+import TopBar from '../components/TopBar';
 
 interface Props {
   datos: { codigo: string; soyHost: boolean; nombre: string }; 
@@ -101,10 +102,12 @@ export const ImpostorOnline = ({ datos, salir, volver }: Props) => {
   // --- FASE 1: RONDA (Ver rol) ---
   if (fase === 'RONDA' || fase === 'INICIO' || fase === 'JUGANDO') {
     return (
-      <Container className="min-vh-100 py-4 d-flex flex-column align-items-center bg-dark text-white text-center">
+      <Container className="min-vh-100 py-0 d-flex flex-column align-items-center bg-dark text-white text-center">
+        <TopBar titulo="IMPOSTOR" icono="🕵️" color="#00d4ff" onVolver={handleVolverAlLobby} />
+        <div className="topbar-spacer" />
         
         {/* HEADER */}
-        <div className="w-100 d-flex justify-content-between align-items-center mb-4 px-2" style={{maxWidth: '600px'}}>
+        <div className="w-100 d-flex justify-content-between align-items-center mb-4 px-3" style={{maxWidth: '600px'}}>
              <div className="badge bg-dark border border-secondary text-white px-3 py-2 rounded-pill">RONDA DE DEBATE</div>
              {estoyVivo ? <span className="text-success small fw-bold">VIVO 🟢</span> : <span className="text-secondary small fw-bold">ESPECTADOR 👻</span>}
         </div>
@@ -193,7 +196,9 @@ export const ImpostorOnline = ({ datos, salir, volver }: Props) => {
   // --- FASE 2: VOTACIÓN ---
   if (fase === 'VOTACION') {
     return (
-      <Container className="min-vh-100 py-4 d-flex flex-column align-items-center bg-dark text-white text-center">
+      <Container className="min-vh-100 py-0 d-flex flex-column align-items-center bg-dark text-white text-center">
+        <TopBar titulo="VOTACIÓN" icono="🗣️" color="#ff0055" onVolver={handleVolverAlLobby} />
+        <div className="topbar-spacer" />
         <h2 className="titulo-neon mb-4 text-danger animate-pulse" style={{textShadow: '0 0 10px red'}}>¿QUIÉN ES EL CULPABLE?</h2>
         
         {!estoyVivo && <div className="badge bg-secondary mb-4">MODO ESPECTADOR 👻</div>}
@@ -236,8 +241,10 @@ export const ImpostorOnline = ({ datos, salir, volver }: Props) => {
       const sombraNombre = (ganador === 'CIUDADANOS') ? '0 0 30px #00ff9d' : '0 0 30px red';
 
       return (
-        <Container className="min-vh-100 py-4 d-flex flex-column align-items-center justify-content-center bg-dark text-white text-center p-3">
-            
+        <Container className="min-vh-100 py-0 d-flex flex-column align-items-center justify-content-center bg-dark text-white text-center p-0">
+            <TopBar titulo="RESULTADO" icono="⚖️" color="#ffd700" onVolver={handleVolverAlLobby} />
+            <div className="topbar-spacer" />
+            <div className="px-3 d-flex flex-column align-items-center w-100">
             <div className="mb-5 animate-in zoom-in w-100" style={{maxWidth: '500px'}}>
                 <h5 className="text-white-50 text-uppercase ls-2 mb-3">El eliminado fue...</h5>
                 
@@ -303,6 +310,7 @@ export const ImpostorOnline = ({ datos, salir, volver }: Props) => {
                 </div>
             )}
             
+            </div>
         </Container>
       );
   }

@@ -117,6 +117,40 @@ export const api = {
   getFraseVotacion: async (cat: string, esPremium: boolean = false) => (await safeFetch(`/juegos/votacion/rapido/${cat}?es_premium=${esPremium}`)).json(),
   getPregunta: async (cat: string, esPremium: boolean = false) => (await safeFetch(`/juegos/preguntas/${cat}?es_premium=${esPremium}`)).json(),
 
+  // --- LA JEFA (La Puta) ---
+  crearPartidaLaJefa: async (jugadores: string[]) => {
+    const res = await safeFetch(`/juegos/la-puta/crear`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ jugadores })
+    });
+    return (res as Response).json();
+  },
+  sacarCartaLaJefa: async (idSala: string) => {
+    const res = await safeFetch(`/juegos/la-puta/sacar-carta`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id_sala: idSala })
+    });
+    return (res as Response).json();
+  },
+  asignarPuta: async (idSala: string, dueño: string, mascota: string) => {
+    const res = await safeFetch(`/juegos/la-puta/asignar-puta`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id_sala: idSala, dueño, mascota })
+    });
+    return (res as Response).json();
+  },
+  registrarTrago: async (idSala: string, perdedor: string) => {
+    const res = await safeFetch(`/juegos/la-puta/registrar-trago`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id_sala: idSala, perdedor })
+    });
+    return (res as Response).json();
+  },
+
   // --- MAZOS COMPLETOS (sin repetición) ---
   getMazoYoNunca: async (cat: string, esPremium: boolean = false): Promise<string[]> => {
     const res = await safeFetch(`/juegos/yo-nunca/mazo/${cat}?es_premium=${esPremium}`);
@@ -141,6 +175,161 @@ export const api = {
           body: JSON.stringify({ codigo, juego, categoria_id: categoriaId, es_usuario_premium: esPremium })
       });
   },
+
+  // Update general user data (called after a successful purchase)
+  actualizarUsuario: async (uid: string, datos: Record<string, any>) => {
+    const res = await safeFetch(`/usuarios/${uid}/actualizar`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(datos)
+    });
+    return await (res as Response).json();
+  },
   
-  // Agrega aquí el resto de funciones de juegos online (sacarCartaOnline, etc.) si las borraste por error
-};
+  // --- PEAJE ---
+  crearPartidaPeaje: async () => {
+    const res = await safeFetch(`/juegos/peaje/crear`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ jugadores: [] })
+    });
+    return (res as Response).json();
+  },
+  jugarTurnoPeaje: async (idSala: string, prediccion: string) => {
+    const res = await safeFetch(`/juegos/peaje/jugar`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id_sala: idSala, prediccion })
+    });
+    return (res as Response).json();
+  },
+
+  // --- IMPOSTOR (OFFLINE) ---
+  getCategoriasImpostor: async () => {
+    const res = await safeFetch(`/impostor/categorias`);
+    return (res as Response).json();
+  },
+  crearPartidaImpostorLocal: async (
+    jugadores: string[],
+    categoriaId: string | undefined,
+    tienePermiso: boolean,
+    esPremium: boolean
+  ) => {
+    const res = await safeFetch(`/impostor/crear-local`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        jugadores,
+        categoria_id: categoriaId || 'mix',
+        tiene_permiso: tienePermiso,
+        es_usuario_premium: esPremium
+      })
+    });
+    return (res as Response).json();
+  },
+
+  // --- ONLINE: LA JEFA ---
+  sacarCartaOnline: async (codigo: string) => {
+    const res = await safeFetch(`/juegos/online/jugada/sacar`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ codigo, juego: 'la-jefa' })
+    });
+    return (res as Response).json();
+  },
+  pasarTurnoOnline: async (codigo: string) => {
+    const res = await safeFetch(`/juegos/online/jugada/pasar`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ codigo, juego: '' })
+    });
+    return (res as Response).json();
+  },
+  reportarTragoOnline: async (codigo: string, victima: string) => {
+    const res = await safeFetch(`/juegos/online/jugada/reportar`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ codigo, victima })
+    });
+    return (res as Response).json();
+  },
+  asignarPutaOnline: async (codigo: string, dueno: string, esclavo: string) => {
+    const res = await safeFetch(`/juegos/online/jugada/asignar_puta`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ codigo, dueno, esclavo })
+    });
+    return (res as Response).json();
+  },
+  tomanTodosOnline: async (codigo: string) => {
+    const res = await safeFetch(`/juegos/online/jugada/toman_todos`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ codigo, juego: '' })
+    });
+    return (res as Response).json();
+  },
+  terminarJuego: async (codigo: string) => {
+    const res = await safeFetch(`/juegos/online/terminar`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ codigo, juego: '' })
+    });
+    return (res as Response).json();
+  },
+
+  // --- ONLINE: IMPOSTOR ---
+  votarImpostor: async (codigo: string, votante: string, acusado: string) => {
+    const res = await safeFetch(`/juegos/online/votar`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ codigo, votante, acusado })
+    });
+    return (res as Response).json();
+  },
+  cambiarFaseImpostor: async (codigo: string, fase: string) => {
+    const res = await safeFetch(`/juegos/online/cambiar-fase`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ codigo, fase })
+    });
+    return (res as Response).json();
+  },
+
+  // --- ONLINE: VOTACIÓN ---
+  votarEncuesta: async (codigo: string, votante: string, opcion: string) => {
+    const res = await safeFetch(`/juegos/online/votar-encuesta`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ codigo, votante, opcion })
+    });
+    return (res as Response).json();
+  },
+
+  // --- ONLINE: PIRÁMIDE ---
+  apostarPiramide: async (codigo: string, nombre: string, apuesta: string) => {
+    const res = await safeFetch(`/juegos/online/piramide/apostar`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ codigo, nombre, apuesta })
+    });
+    return (res as Response).json();
+  },
+  voltearCarta: async (codigo: string) => {
+    const res = await safeFetch(`/juegos/online/piramide/voltear`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ codigo })
+    });
+    return (res as Response).json();
+  },
+  // Alias para PiramideOnline que usa este nombre
+  finalizarJuegoOnline: async (codigo: string) => {
+    const res = await safeFetch(`/juegos/online/terminar`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ codigo, juego: '' })
+    });
+    return (res as Response).json();
+  },
+};

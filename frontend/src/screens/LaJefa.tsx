@@ -2,8 +2,9 @@ import { useState } from 'react';
 import { Container, Row, Col, Modal, ListGroup, Form } from 'react-bootstrap';
 import { api } from '../lib/api';
 import { AdService } from '../lib/AdMobUtils';
-import { useSubscription } from '../context/SubscriptionContext'; // 👈 1. Importamos el contexto
+import { useSubscription } from '../context/SubscriptionContext';
 import '../App.css';
+import TopBar from '../components/TopBar';
 
 interface Props { volver: () => void; }
 
@@ -181,7 +182,7 @@ export const LaJefa = ({ volver }: Props) => {
   if (!sala) {
     return (
       <Container className="min-vh-100 d-flex flex-column justify-content-center align-items-center p-3">
-        <h1 className="titulo-neon mb-4">LA JEFA 👠</h1>
+        <h1 className="titulo-neon mb-4">LA PUT@ 👠</h1>
         
         <div className="card-shamona p-4 w-100 animate-in zoom-in" style={{ maxWidth: '400px' }}>
             <h5 className="text-white-50 mb-3 text-uppercase small fw-bold">Armá la ronda</h5>
@@ -229,21 +230,19 @@ export const LaJefa = ({ volver }: Props) => {
 
   // --- VISTA 2: MESA DE JUEGO ---
   return (
-    <Container className="min-vh-100 d-flex flex-column align-items-center py-4 text-center position-relative">
-      
-      <div className="w-100 d-flex justify-content-between align-items-center mb-4 px-3" style={{maxWidth: '500px'}}>
-        <div className="d-flex align-items-center gap-2">
-            <div className="titulo-neon fs-4 m-0">LA PUT@</div>
-            <button 
-                className="btn btn-sm btn-outline-info rounded-circle d-flex align-items-center justify-content-center" 
-                style={{ width: '30px', height: '30px', padding: 0, fontSize: '1.2rem' }}
-                onClick={() => setShowReglas(true)}
-            >
-                ℹ️
-            </button>
-        </div>
-        <button className="btn btn-sm btn-outline-light rounded-pill px-3" onClick={manejarSalidaJuego}>SALIR</button>
+    <Container className="min-vh-100 d-flex flex-column align-items-center py-0 text-center position-relative">
+      <TopBar titulo="LA PUT@" icono="👠" color="var(--neon-pink)" onVolver={manejarSalidaJuego} />
+      <div className="topbar-spacer" />
+      <div className="w-100 d-flex justify-content-end align-items-center px-3 mb-2" style={{maxWidth: '500px'}}>
+        <button
+          className="btn btn-sm btn-outline-info rounded-circle d-flex align-items-center justify-content-center"
+          style={{ width: '30px', height: '30px', padding: 0, fontSize: '1.2rem' }}
+          onClick={() => setShowReglas(true)}
+        >
+          ℹ️
+        </button>
       </div>
+
 
       <div className="flex-grow-1 d-flex flex-column justify-content-center align-items-center w-100">
           {carta ? (

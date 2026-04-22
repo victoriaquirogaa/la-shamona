@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
 import { Container, Form, CloseButton, Spinner } from 'react-bootstrap';
-import { api } from '../lib/api'; 
-import { AdService } from '../lib/AdMobUtils'; 
+import { api } from '../lib/api';
+import { AdService } from '../lib/AdMobUtils';
 import Swal from 'sweetalert2';
-import { useSubscription } from '../context/SubscriptionContext'; 
+import { useSubscription } from '../context/SubscriptionContext';
 import '../App.css';
+import TopBar from '../components/TopBar';
 
 interface Categoria {
   id: string;
@@ -174,11 +175,10 @@ export const Impostor = ({ volver }: Props) => {
 
   if (fase === 'setup') {
     return (
-      <Container className="min-vh-100 py-4 d-flex flex-column align-items-center text-center p-3">
-        <div className="w-100 d-flex justify-content-between align-items-center mb-4 px-2" style={{maxWidth: '500px'}}>
-            <h2 className="titulo-neon m-0 fs-3" style={{color: '#bd00ff', textShadow: '0 0 10px #bd00ff'}}>IMPOSTOR 🕵️‍♂️</h2>
-            <button className="btn btn-sm btn-outline-light rounded-pill px-3" onClick={volver}>SALIR</button>
-        </div>
+      <Container className="min-vh-100 py-0 d-flex flex-column align-items-center text-center p-0">
+        <TopBar titulo="IMPOSTOR" icono="🕵️" color="#bd00ff" onVolver={volver} />
+        <div className="topbar-spacer" />
+        <div className="w-100 px-3 d-flex flex-column align-items-center">
         
         <div className="card-shamona p-4 mb-3 w-100 animate-in zoom-in" style={{maxWidth: '500px', border: '1px solid #bd00ff'}}>
             
@@ -258,14 +258,15 @@ export const Impostor = ({ volver }: Props) => {
             </div>
         </div>
 
-        <button 
-            className="btn-neon-secondary w-100 py-3 fw-bold fs-5 shadow-lg" 
-            style={{maxWidth: '500px', backgroundColor: '#bd00ff', color: 'white', borderColor: '#bd00ff'}} 
-            onClick={repartir} 
-            disabled={loading || nombres.length < 3}
-        >
-            {loading ? <Spinner size="sm"/> : "🕵️ REPARTIR ROLES"}
-        </button>
+          <button 
+              className="btn-neon-secondary w-100 py-3 fw-bold fs-5 shadow-lg" 
+              style={{maxWidth: '500px', backgroundColor: '#bd00ff', color: 'white', borderColor: '#bd00ff'}} 
+              onClick={repartir} 
+              disabled={loading || nombres.length < 3}
+          >
+              {loading ? <Spinner size="sm"/> : "🕵️ REPARTIR ROLES"}
+          </button>
+        </div>
       </Container>
     );
   }
@@ -273,7 +274,9 @@ export const Impostor = ({ volver }: Props) => {
   if (fase === 'ronda') {
     const jugador = distribucion[turno];
     return (
-      <Container className="min-vh-100 py-4 d-flex flex-column align-items-center justify-content-center text-center p-3">
+      <Container className="min-vh-100 py-0 d-flex flex-column align-items-center justify-content-center text-center p-0">
+        <TopBar titulo="IMPOSTOR" icono="🕵️" color="#bd00ff" onVolver={() => setFase('setup')} />
+        <div className="topbar-spacer" />
         <div className="badge rounded-pill bg-dark border border-secondary mb-5 animate-in fade-in px-4 py-2">
             JUGADOR {turno + 1} / {distribucion.length}
         </div>
@@ -343,7 +346,9 @@ export const Impostor = ({ volver }: Props) => {
 
   // FASE FINAL
   return (
-    <Container className="min-vh-100 py-4 d-flex flex-column align-items-center justify-content-center text-center p-3">
+    <Container className="min-vh-100 py-0 d-flex flex-column align-items-center justify-content-center text-center p-0">
+        <TopBar titulo="IMPOSTOR" icono="🕵️" color="#bd00ff" onVolver={() => setFase('setup')} />
+        <div className="topbar-spacer" />
         <div style={{fontSize: '4rem'}} className="mb-2 animate-bounce">🔥</div>
         <h1 className="titulo-neon display-3 mb-5" style={{color: '#ffd700', textShadow: '0 0 20px #ffd700'}}>¡A DEBATIR!</h1>
         
