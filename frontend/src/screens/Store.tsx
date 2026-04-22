@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { Container, Row, Col, Spinner } from 'react-bootstrap';
 import { useSubscription } from '../context/SubscriptionContext';
-import { ModalCanje } from '../components/ModalCanje'; // 👈 1. IMPORTAMOS EL MODAL
-import '../App.css'; 
+import { ModalCanje } from '../components/ModalCanje';
+import '../App.css';
+import TopBar from '../components/TopBar';
 
 interface Props {
     volver: () => void;
@@ -46,14 +47,10 @@ export const Store = ({ volver }: Props) => {
     };
 
     return (
-        <Container className="min-vh-100 py-4 d-flex flex-column align-items-center text-center p-3 animate-in fade-in bg-dark">
-            
-            {/* HEADER */}
-            <div className="d-flex justify-content-between w-100 align-items-center mb-4" style={{maxWidth: '600px'}}>
-                <button className="btn btn-outline-light rounded-circle" style={{width:40, height:40}} onClick={volver}>🡠</button>
-                <span className="text-white-50 small fw-bold">TIENDA VIP</span>
-                <div style={{width: 40}}></div> 
-            </div>
+        <Container className="min-vh-100 py-0 d-flex flex-column align-items-center text-center animate-in fade-in bg-dark">
+            <TopBar titulo="TIENDA VIP" icono="📎" color="#ffd700" onVolver={volver} />
+            <div className="topbar-spacer" />
+            <div className="w-100 p-3 d-flex flex-column align-items-center">
 
             <div className="mb-5">
                 <div style={{fontSize: '4rem'}} className="mb-2 animate-bounce">💎</div>
@@ -142,9 +139,8 @@ export const Store = ({ volver }: Props) => {
                 ¿Ya compraste antes? Restaurar compra
             </button>
 
-            {/* 👇 4. EL MODAL OCULTO */}
+            </div>
             <ModalCanje show={showCanje} onHide={() => setShowCanje(false)} />
-
         </Container>
     );
 };

@@ -4,6 +4,7 @@ import TopView from '../components/TopView';
 import CocktailCard from '../components/CocktailCard';
 import RecipeDetail from '../components/RecipeDetail';
 import CommentsOverlay from '../components/CommentsOverlay';
+import TopBar from '../components/TopBar';
 import { Cocktail, AppScreen } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { db } from '../lib/firebase'; 
@@ -34,52 +35,67 @@ const Bebidas: React.FC<BebidasProps> = ({ volver }) => {
   const [selectedAbvRange, setSelectedAbvRange] = useState<string | null>(null);
   const [selectedTaste, setSelectedTaste] = useState<string | null>(null);
 
-  // Cargar bebidas desde Firestore
+  // Cargar bebidas desde Firestore (con retry para ERR_QUIC_PROTOCOL_ERROR)
   useEffect(() => {
-    const cargarBebidas = async () => {
+    let cancelado = false;
+
+    const intentarCarga = async (intentos = 0): Promise<void> => {
+      if (cancelado) return;
       try {
         const querySnapshot = await getDocs(collection(db, 'bebidas'));
+        if (cancelado) return;
         const bebidasData: Cocktail[] = [];
-        const tipos = new Set<string>();
-        
+
         querySnapshot.forEach((doc) => {
           const data = doc.data();
-          const category = data.categoria || data.category || (data.alcohol_tipo ? data.alcohol_tipo[0] : 'Varios');
-          tipos.add(category);
-          
+          // Los documentos tienen campos en inglés directamente
+          const category = data.category || data.categoria || (data.alcohol_tipo ? data.alcohol_tipo[0] : 'Varios');
+
           bebidasData.push({
-            id: doc.id,
-            name: data.nombre || data.name || 'Trago sin nombre',
-            description: data.descripcion || data.description || '',
-            image: data.imagen_url || data.image || 'https://images.unsplash.com/photo-1514362545857-3bc16c4c7d1b',
+            id: doc.id,  // Siempre usamos el ID del documento
+            name: data.name || data.nombre || 'Trago sin nombre',
+            description: data.description || data.descripcion || '',
+            image: data.image || data.imagen_url || 'https://images.unsplash.com/photo-1514362545857-3bc16c4c7d1b',
             rating: data.rating || 0,
-            abv: data.graduacion ? `${data.graduacion}%` : (data.abv || '0%'),
-            difficulty: data.dificultad || data.difficulty || 'Media',
+            abv: data.abv || (data.graduacion ? `${data.graduacion}%` : '0%'),
+            difficulty: data.difficulty || data.dificultad || 'Media',
             likes: data.likes || 0,
-            comments: typeof data.comments === 'string' ? parseInt(data.comments) || 0 : (data.comments || 0),
-            category: category,
-            ingredients: Array.isArray(data.ingredientes) ? data.ingredientes.map((i: any) => typeof i === 'string' ? { item: i, amount: '' } : i) : [],
-            instructions: data.pasos || data.instructions || []
+            comments: typeof data.comments === 'number' ? data.comments : (parseInt(String(data.comments)) || 0),
+            category,
+            ingredients: Array.isArray(data.ingredients)
+              ? data.ingredients.map((i: any) => typeof i === 'string' ? { item: i, amount: '' } : i)
+              : (Array.isArray(data.ingredientes)
+                  ? data.ingredientes.map((i: any) => typeof i === 'string' ? { item: i, amount: '' } : i)
+                  : []),
+            instructions: data.instructions || data.pasos || []
           });
         });
 
-        const finalData = bebidasData.length > 0 ? bebidasData : [];
-        setAllCocktails(finalData);
-        setCocktails(finalData);
-        
+
+        setAllCocktails(bebidasData);
+        setCocktails(bebidasData);
+
         if (user?.uid) {
           await cargarLikesYSaves(user.uid);
         }
-      } catch (error) {
+      } catch (error: any) {
+        // Retry automático para errores de red QUIC/conexión (máx 3 intentos)
+        const esErrorDeRed = error?.code === 'unavailable' || String(error).includes('QUIC') || String(error).includes('network');
+        if (esErrorDeRed && intentos < 3 && !cancelado) {
+          console.warn(`Reintentando carga de bebidas (intento ${intentos + 1}/3)...`);
+          await new Promise(r => setTimeout(r, 1500 * (intentos + 1)));
+          return intentarCarga(intentos + 1);
+        }
         console.error('Error cargando bebidas:', error);
         setAllCocktails([]);
         setCocktails([]);
       } finally {
-        setLoading(false);
+        if (!cancelado) setLoading(false);
       }
     };
 
-    cargarBebidas();
+    intentarCarga();
+    return () => { cancelado = true; };
   }, [user?.uid]);
 
   const cargarLikesYSaves = async (uid: string) => {
@@ -106,7 +122,7 @@ const Bebidas: React.FC<BebidasProps> = ({ volver }) => {
       
       if (docSnap.exists()) {
         const data = docSnap.data();
-        const category = data.categoria || data.category || (data.alcohol_tipo ? data.alcohol_tipo[0] : 'Varios');
+        const category = data.category || data.categoria || (data.alcohol_tipo ? data.alcohol_tipo[0] : 'Varios');
         
         // Contar comentarios reales
         const q = query(collection(db, `bebidas/${bebidaId}/comentarios`));
@@ -115,18 +131,23 @@ const Bebidas: React.FC<BebidasProps> = ({ volver }) => {
         
         const bebidaActualizada: Cocktail = {
           id: docSnap.id,
-          name: data.nombre || data.name || 'Trago sin nombre',
-          description: data.descripcion || data.description || '',
-          image: data.imagen_url || data.image || 'https://images.unsplash.com/photo-1514362545857-3bc16c4c7d1b',
+          name: data.name || data.nombre || 'Trago sin nombre',
+          description: data.description || data.descripcion || '',
+          image: data.image || data.imagen_url || 'https://images.unsplash.com/photo-1514362545857-3bc16c4c7d1b',
           rating: data.rating || 0,
-          abv: data.graduacion ? `${data.graduacion}%` : (data.abv || '0%'),
-          difficulty: data.dificultad || data.difficulty || 'Media',
+          abv: data.abv || (data.graduacion ? `${data.graduacion}%` : '0%'),
+          difficulty: data.difficulty || data.dificultad || 'Media',
           likes: data.likes || 0,
           comments: realCommentCount,
-          category: category,
-          ingredients: Array.isArray(data.ingredientes) ? data.ingredientes.map((i: any) => typeof i === 'string' ? { item: i, amount: '' } : i) : [],
-          instructions: data.pasos || data.instructions || []
+          category,
+          ingredients: Array.isArray(data.ingredients)
+            ? data.ingredients.map((i: any) => typeof i === 'string' ? { item: i, amount: '' } : i)
+            : (Array.isArray(data.ingredientes)
+                ? data.ingredientes.map((i: any) => typeof i === 'string' ? { item: i, amount: '' } : i)
+                : []),
+          instructions: data.instructions || data.pasos || []
         };
+
         
         setCocktails(prev => prev.map(c => c.id === bebidaId ? bebidaActualizada : c));
         setAllCocktails(prev => prev.map(c => c.id === bebidaId ? bebidaActualizada : c));
@@ -147,10 +168,10 @@ const Bebidas: React.FC<BebidasProps> = ({ volver }) => {
       return;
     }
 
-    const query = searchQuery.toLowerCase();
-    const results = allCocktails.filter(c => 
-      c.name.toLowerCase().includes(query) || 
-      (c.category || '').toLowerCase().includes(query)
+    const searchTerm = searchQuery.toLowerCase();
+    const results = allCocktails.filter(c =>
+      c.name.toLowerCase().includes(searchTerm) ||
+      (c.category || '').toLowerCase().includes(searchTerm)
     );
     setCocktails(results);
     setIsSearching(false);
@@ -311,31 +332,23 @@ const Bebidas: React.FC<BebidasProps> = ({ volver }) => {
   }
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden bg-[#020617] text-white transition-colors duration-300">
+    <div className="flex flex-col bg-[#020617] text-white overflow-hidden" style={{ height: '100dvh' }}>
       
-      {/* HEADER */}
+      {/* TOPBAR — Componente unificado */}
       {currentScreen !== AppScreen.RECIPE && (
-        <header className="px-6 pt-14 pb-4 flex items-center justify-between z-50 bg-[#020617]/80 backdrop-blur-md border-b border-white/5 shrink-0">
-          <button 
-            onClick={goBack} 
-            className={`w-10 h-10 flex items-center justify-center rounded-full bg-white/5 border border-white/10 transition-opacity ${(currentScreen === AppScreen.FEED && !volver) ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
-          >
-            <span className="material-symbols-outlined text-white">chevron_left</span>
-          </button>
-          
-          <div className="flex items-center gap-2">
-            <span className="text-xl">🍹</span>
-            <h1 className="font-extrabold text-xl tracking-tight uppercase">Tragos</h1>
-          </div>
-          
-          <button onClick={() => setCurrentScreen(AppScreen.SEARCH)} className="w-10 h-10 flex items-center justify-center rounded-full bg-white/5 border border-white/10 text-white active:scale-90 transition-transform">
-            <span className="material-symbols-outlined">search</span>
-          </button>
-        </header>
+        <>
+          <TopBar 
+            titulo="TRAGOS" 
+            icono="🍹" 
+            color="#a855f7" 
+            onVolver={goBack} 
+          />
+          <div className="topbar-spacer" />
+        </>
       )}
 
-      {/* CONTENIDO PRINCIPAL */}
-      <main className="flex-1 relative overflow-hidden">
+      {/* CONTENIDO PRINCIPAL — flex-1 para que llene el espacio entre header y nav */}
+      <main className="flex-1 flex flex-col overflow-hidden relative">
         
         {/* PANTALLA: BÚSQUEDA */}
         {currentScreen === AppScreen.SEARCH && (
@@ -351,7 +364,7 @@ const Bebidas: React.FC<BebidasProps> = ({ volver }) => {
                   <p className="font-semibold text-slate-400 animate-pulse">Buscando en la barra...</p>
                 </div>
               ) : cocktails.length > 0 ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 pb-20">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 pb-6">
                   {cocktails.map(cocktail => (
                     <div key={cocktail.id} onClick={() => openRecipe(cocktail)} className="bg-white/5 p-4 rounded-3xl flex gap-4 cursor-pointer active:scale-95 transition-transform border border-white/5 hover:bg-white/10">
                       <img src={cocktail.image} className="w-20 h-20 rounded-2xl object-cover" alt={cocktail.name} />
@@ -375,107 +388,48 @@ const Bebidas: React.FC<BebidasProps> = ({ volver }) => {
           </div>
         )}
 
-        {/* 🔥 PANTALLA FEED: ESTILO TINDER/REELS FULL-SCREEN SNAP 🔥 */}
+        {/* FEED — Carrusel horizontal tipo Tinder */}
         {currentScreen === AppScreen.FEED && (
-          <div className="h-full flex flex-col">
-            {/* Header con botón menú */}
-            <div className="px-6 pt-4 pb-2 flex items-center justify-between border-b border-white/5">
-              <button
-                onClick={() => volver?.()}
-                className="flex items-center gap-2 text-purple-400 hover:text-purple-300 transition-colors"
-              >
-                <span className="material-symbols-outlined">arrow_back</span>
-                <span className="text-sm font-semibold">Menú</span>
-              </button>
-              <h2 className="text-lg font-bold text-white">Tragos</h2>
-              <div className="w-12"></div>
-            </div>
+          <div className="flex-1 flex flex-col overflow-hidden">
 
-            {/* Botón de Filtros Avanzados */}
-            <div className="px-6 pt-4 pb-2 border-b border-white/5">
+            {/* Filtros */}
+            <div className="px-4 pt-2 pb-2 border-b border-white/5 shrink-0">
               <button
                 onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
-                className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold bg-white/5 border border-white/10 text-slate-300 hover:bg-white/10 transition-all"
+                className="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold bg-white/5 border border-white/10 text-slate-300 hover:bg-white/10 transition-all"
               >
-                <span className="material-symbols-outlined text-lg">tune</span>
+                <span className="material-symbols-outlined text-base">tune</span>
                 Filtros
-                <span className={`material-symbols-outlined text-lg transition-transform ${showAdvancedFilters ? 'rotate-180' : ''}`}>expand_more</span>
+                <span className={`material-symbols-outlined text-base transition-transform ${showAdvancedFilters ? 'rotate-180' : ''}`}>expand_more</span>
               </button>
 
-              {/* Filtros Desplegables */}
               {showAdvancedFilters && (
-                <div className="mt-4 space-y-4 pb-4">
-                  {/* Dificultad */}
+                <div className="mt-3 space-y-3 pb-2">
                   <div>
-                    <p className="text-xs font-bold text-slate-400 mb-2 uppercase">Dificultad</p>
+                    <p className="text-xs font-bold text-slate-400 mb-1.5 uppercase">Dificultad</p>
                     <div className="flex gap-2">
                       {['Fácil', 'Medio', 'Difícil'].map(diff => (
-                        <button
-                          key={diff}
-                          onClick={() => handleDifficultyFilter(selectedDifficulty === diff ? null : diff)}
-                          className={`flex-1 px-3 py-2 rounded-lg text-xs font-semibold transition-all border ${
-                            selectedDifficulty === diff
-                              ? 'bg-green-600/80 text-white border-green-500'
-                              : 'bg-white/5 text-slate-400 border-white/10 hover:bg-white/10'
-                          }`}
-                        >
+                        <button key={diff} onClick={() => handleDifficultyFilter(selectedDifficulty === diff ? null : diff)}
+                          className={`flex-1 px-2 py-1.5 rounded-lg text-xs font-semibold transition-all border ${selectedDifficulty === diff ? 'bg-green-600/80 text-white border-green-500' : 'bg-white/5 text-slate-400 border-white/10'}`}>
                           {diff}
                         </button>
                       ))}
                     </div>
                   </div>
-
-                  {/* ABV */}
                   <div>
-                    <p className="text-xs font-bold text-slate-400 mb-2 uppercase">Graduación Alcohólica</p>
+                    <p className="text-xs font-bold text-slate-400 mb-1.5 uppercase">Graduación</p>
                     <div className="flex gap-2">
-                      {[{ label: 'Bajo (<15%)', val: 'bajo' }, { label: 'Medio (15-30%)', val: 'medio' }, { label: 'Alto (>30%)', val: 'alto' }].map(abv => (
-                        <button
-                          key={abv.val}
-                          onClick={() => handleAbvFilter(selectedAbvRange === abv.val ? null : abv.val)}
-                          className={`flex-1 px-3 py-2 rounded-lg text-xs font-semibold transition-all border ${
-                            selectedAbvRange === abv.val
-                              ? 'bg-orange-600/80 text-white border-orange-500'
-                              : 'bg-white/5 text-slate-400 border-white/10 hover:bg-white/10'
-                          }`}
-                        >
+                      {[{ label: '<15%', val: 'bajo' }, { label: '15-30%', val: 'medio' }, { label: '>30%', val: 'alto' }].map(abv => (
+                        <button key={abv.val} onClick={() => handleAbvFilter(selectedAbvRange === abv.val ? null : abv.val)}
+                          className={`flex-1 px-2 py-1.5 rounded-lg text-xs font-semibold transition-all border ${selectedAbvRange === abv.val ? 'bg-orange-600/80 text-white border-orange-500' : 'bg-white/5 text-slate-400 border-white/10'}`}>
                           {abv.label}
                         </button>
                       ))}
                     </div>
                   </div>
-
-                  {/* Sabor */}
-                  <div>
-                    <p className="text-xs font-bold text-slate-400 mb-2 uppercase">Sabor</p>
-                    <div className="flex gap-2">
-                      {['Dulce', 'Amargo'].map(taste => (
-                        <button
-                          key={taste}
-                          onClick={() => handleTasteFilter(selectedTaste === taste.toLowerCase() ? null : taste.toLowerCase())}
-                          className={`flex-1 px-3 py-2 rounded-lg text-xs font-semibold transition-all border ${
-                            selectedTaste === taste.toLowerCase()
-                              ? 'bg-pink-600/80 text-white border-pink-500'
-                              : 'bg-white/5 text-slate-400 border-white/10 hover:bg-white/10'
-                          }`}
-                        >
-                          {taste}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Botón Limpiar Filtros */}
                   {(selectedDifficulty || selectedAbvRange || selectedTaste) && (
-                    <button
-                      onClick={() => {
-                        setSelectedDifficulty(null);
-                        setSelectedAbvRange(null);
-                        setSelectedTaste(null);
-                        applyAllFilters(null, null, null);
-                      }}
-                      className="w-full px-3 py-2 rounded-lg text-xs font-semibold bg-white/5 border border-white/10 text-slate-400 hover:bg-white/10 transition-all"
-                    >
+                    <button onClick={() => { setSelectedDifficulty(null); setSelectedAbvRange(null); setSelectedTaste(null); applyAllFilters(null, null, null); }}
+                      className="w-full px-2 py-1.5 rounded-lg text-xs font-semibold bg-white/5 border border-white/10 text-slate-400 transition-all">
                       Limpiar filtros
                     </button>
                   )}
@@ -483,27 +437,24 @@ const Bebidas: React.FC<BebidasProps> = ({ volver }) => {
               )}
             </div>
             
-            {/* Contenedor Carrusel Horizontal (Snap) */}
-            <div className="flex-1 flex overflow-x-auto no-scrollbar snap-x snap-mandatory pt-2 scroll-smooth">
+            {/* Cards — scroll horizontal snap, cada card ocupa toda la pantalla */}
+            <div className="flex-1 flex overflow-x-auto no-scrollbar snap-x snap-mandatory scroll-smooth">
               {cocktails.length > 0 ? (
                 cocktails.map(cocktail => (
-                  <div key={cocktail.id} className="w-full h-full flex-shrink-0 snap-center snap-always px-4 pb-28">
-                    <div className="w-full h-full relative group">
-                      <div className="absolute -inset-0.5 bg-gradient-to-r from-purple-600 to-pink-600 rounded-[32px] opacity-0 group-hover:opacity-30 transition duration-500 blur-lg"></div>
-                      <CocktailCard 
-                        cocktail={cocktail} 
-                        onClick={openRecipe} 
-                        isLiked={likedIds.has(cocktail.id)} 
-                        isSaved={savedIds.has(cocktail.id)} 
-                        onLike={() => toggleLike(cocktail.id)} 
-                        onSave={() => toggleSave(cocktail.id)} 
-                        onComment={() => setCommentCocktail(cocktail)} 
-                      />
-                    </div>
+                  <div key={cocktail.id} className="min-w-full h-full flex-shrink-0 snap-center snap-always p-3">
+                    <CocktailCard 
+                      cocktail={cocktail} 
+                      onClick={openRecipe} 
+                      isLiked={likedIds.has(cocktail.id)} 
+                      isSaved={savedIds.has(cocktail.id)} 
+                      onLike={() => toggleLike(cocktail.id)} 
+                      onSave={() => toggleSave(cocktail.id)} 
+                      onComment={() => setCommentCocktail(cocktail)} 
+                    />
                   </div>
                 ))
               ) : (
-                <div className="w-full flex items-center justify-center text-slate-500 pt-20">
+                <div className="min-w-full flex items-center justify-center text-slate-500">
                   <div className="text-center">
                     <span className="material-symbols-outlined text-5xl block mb-2 opacity-20">local_bar</span>
                     <p>No hay tragos con esos filtros.</p>
@@ -514,25 +465,24 @@ const Bebidas: React.FC<BebidasProps> = ({ volver }) => {
           </div>
         )}
 
-        {/* OTRAS PANTALLAS (Le pasamos allCocktails para que funcione el filtro) */}
         {currentScreen === AppScreen.FAVORITES && <FavoritesView onCocktailClick={openRecipe} savedIds={savedIds} allCocktails={allCocktails} />}
-        {currentScreen === AppScreen.TOP && <TopView onCocktailClick={openRecipe} onSearchClick={() => setCurrentScreen(AppScreen.SEARCH)} onBackClick={() => setCurrentScreen(AppScreen.FEED)} allCocktails={allCocktails} />}
+        {currentScreen === AppScreen.TOP && <TopView onCocktailClick={openRecipe} allCocktails={allCocktails} />}
       </main>
 
-      {/* BARRA DE NAVEGACIÓN INFERIOR */}
+      {/* BARRA DE NAVEGACIÓN — shrink-0, parte del flujo normal, NUNCA flota sobre el contenido */}
       {currentScreen !== AppScreen.RECIPE && (
-        <nav className="glass-morphism border-t border-white/5 rounded-t-[32px] px-10 pt-4 pb-8 flex justify-between items-center z-50 absolute bottom-0 w-full safe-bottom shadow-[0_-10px_40px_rgba(0,0,0,0.5)] bg-[#020617]/90 backdrop-blur-xl">
-          <button onClick={() => setCurrentScreen(AppScreen.FEED)} className={`flex flex-col items-center gap-1 transition-colors ${currentScreen === AppScreen.FEED ? 'text-purple-500' : 'text-slate-400'}`}>
-            <span className={`material-symbols-outlined text-2xl ${currentScreen === AppScreen.FEED ? 'filled' : ''}`} style={currentScreen === AppScreen.FEED ? { fontVariationSettings: "'FILL' 1" } : {}}>explore</span>
-            <span className="text-[10px] font-bold uppercase tracking-wider">Explorar</span>
+        <nav className="shrink-0 border-t border-white/10 px-6 pt-2 pb-3 flex justify-around items-center bg-[#020617] z-50">
+          <button onClick={() => setCurrentScreen(AppScreen.FEED)} className={`flex flex-col items-center gap-0.5 px-5 py-1 rounded-xl transition-colors ${currentScreen === AppScreen.FEED ? 'text-purple-400' : 'text-slate-500'}`}>
+            <span className="material-symbols-outlined" style={{ fontSize: '22px', fontVariationSettings: currentScreen === AppScreen.FEED ? "'FILL' 1" : "'FILL' 0" }}>explore</span>
+            <span className="text-[9px] font-bold uppercase tracking-wider">Explorar</span>
           </button>
-          <button onClick={() => setCurrentScreen(AppScreen.TOP)} className={`flex flex-col items-center gap-1 transition-colors ${currentScreen === AppScreen.TOP ? 'text-purple-500' : 'text-slate-400'}`}>
-            <span className={`material-symbols-outlined text-2xl ${currentScreen === AppScreen.TOP ? 'filled' : ''}`} style={currentScreen === AppScreen.TOP ? { fontVariationSettings: "'FILL' 1" } : {}}>stars</span>
-            <span className="text-[10px] font-bold uppercase tracking-wider">Top</span>
+          <button onClick={() => setCurrentScreen(AppScreen.TOP)} className={`flex flex-col items-center gap-0.5 px-5 py-1 rounded-xl transition-colors ${currentScreen === AppScreen.TOP ? 'text-purple-400' : 'text-slate-500'}`}>
+            <span className="material-symbols-outlined" style={{ fontSize: '22px', fontVariationSettings: currentScreen === AppScreen.TOP ? "'FILL' 1" : "'FILL' 0" }}>stars</span>
+            <span className="text-[9px] font-bold uppercase tracking-wider">Top</span>
           </button>
-          <button onClick={() => setCurrentScreen(AppScreen.FAVORITES)} className={`flex flex-col items-center gap-1 transition-colors ${currentScreen === AppScreen.FAVORITES ? 'text-purple-500' : 'text-slate-400'}`}>
-            <span className={`material-symbols-outlined text-2xl ${currentScreen === AppScreen.FAVORITES ? 'filled' : ''}`} style={currentScreen === AppScreen.FAVORITES ? { fontVariationSettings: "'FILL' 1" } : {}}>bookmark</span>
-            <span className="text-[10px] font-bold uppercase tracking-wider">Guardados</span>
+          <button onClick={() => setCurrentScreen(AppScreen.FAVORITES)} className={`flex flex-col items-center gap-0.5 px-5 py-1 rounded-xl transition-colors ${currentScreen === AppScreen.FAVORITES ? 'text-purple-400' : 'text-slate-500'}`}>
+            <span className="material-symbols-outlined" style={{ fontSize: '22px', fontVariationSettings: currentScreen === AppScreen.FAVORITES ? "'FILL' 1" : "'FILL' 0" }}>bookmark</span>
+            <span className="text-[9px] font-bold uppercase tracking-wider">Guardados</span>
           </button>
         </nav>
       )}
@@ -545,7 +495,6 @@ const Bebidas: React.FC<BebidasProps> = ({ volver }) => {
           onClose={() => { 
             setCurrentScreen(AppScreen.FEED); 
             setOpenCommentsOnEntry(false);
-            // Refrescar la bebida cuando se cierra la receta
             refrescarBebida(selectedCocktail.id);
           }} 
           isLiked={likedIds.has(selectedCocktail.id)} 
@@ -555,7 +504,6 @@ const Bebidas: React.FC<BebidasProps> = ({ volver }) => {
         />
       )}
 
-      {/* 🔥 MODAL: COMENTARIOS (Se abre directo desde el feed) */}
       {commentCocktail && (
         <CommentsOverlay 
           onClose={() => setCommentCocktail(null)} 

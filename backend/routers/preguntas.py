@@ -2,12 +2,46 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from database import db
 import random
+from typing import List
 
 router = APIRouter()
 
 # --- DEFINICIÓN DE VIPs ---
-# Agregá acá los IDs que sean exclusivos de pago
 CATEGORIAS_VIP = ["picantes"]
+
+# --- 🃏 MAZO COMPLETO (para que el frontend no repita) ---
+MAPA_CATEGORIAS_PREGUNTAS = {
+    "polemicas": "polemicas",
+    "profundas": "profundas",
+    "toxicos": "toxicos",
+    "picantes": "picantes",
+}
+
+@router.get("/mazo/{categoria_id}")
+def obtener_mazo_completo_preguntas(categoria_id: str, es_premium: bool = False) -> dict:
+    lista_final: List[str] = []
+
+    if categoria_id == "mix":
+        for nombre_front, id_doc in MAPA_CATEGORIAS_PREGUNTAS.items():
+            if nombre_front in CATEGORIAS_VIP and not es_premium:
+                continue
+            try:
+                doc = db.collection('categorias_preguntas').document(id_doc).get()
+                if doc.exists:
+                    lista_final.extend(doc.to_dict().get('preguntas', []))
+            except Exception as e:
+                print(f"Error cargando {id_doc}: {e}")
+    else:
+        if categoria_id in CATEGORIAS_VIP and not es_premium:
+            raise HTTPException(status_code=403, detail="Categoría exclusiva Premium.")
+        id_doc = MAPA_CATEGORIAS_PREGUNTAS.get(categoria_id, categoria_id)
+        doc = db.collection('categorias_preguntas').document(id_doc).get()
+        if not doc.exists:
+            raise HTTPException(status_code=404, detail=f"No existe el mazo '{categoria_id}'")
+        lista_final = doc.to_dict().get('preguntas', [])
+
+    random.shuffle(lista_final)
+    return {"frases": lista_final, "total": len(lista_final)}
 
 # --- MODELOS (Restaurados) ---
 class CrearPartidaInput(BaseModel):

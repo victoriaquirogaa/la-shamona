@@ -74,8 +74,8 @@ const CommentsOverlay: React.FC<Props> = ({ onClose, bebidaId }) => {
       const commentRef = collection(db, `bebidas/${bebidaId}/comentarios`);
       
       const docRef = await addDoc(commentRef, {
-        userName: user.displayName || 'Usuario',
-        userAvatar: user.photoURL || null,
+        userName: user.nombre || 'Usuario',
+        userAvatar: user.avatar || null,
         text: newComment,
         userId: user.uid,
         timestamp: serverTimestamp()

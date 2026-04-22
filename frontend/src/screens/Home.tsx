@@ -4,25 +4,52 @@ import logo from '../assets/logo.png';
 import { useAuth } from '../context/AuthContext';
 import { useSubscription } from '../context/SubscriptionContext';
 import { useSound } from '../context/SoundContext';
-import { updateProfile, deleteUser } from 'firebase/auth'; 
-import { auth } from '../lib/firebase'; 
+import { updateProfile, deleteUser } from 'firebase/auth';
+import { auth } from '../lib/firebase';
 import { api } from '../lib/api';
 import '../App.css';
 import { getFirestore, doc, deleteDoc } from 'firebase/firestore';
+import TopBar from '../components/TopBar';
 
 interface Props {
   irA: (pantalla: string) => void;
 }
 
 export const Home = ({ irA }: Props) => {
-  const { user, logout } = useAuth();
+  const { user, logout, actualizarNombreLocal, actualizarAvatarLocal } = useAuth();
   const { isPremium, esAmigo, accesoVip } = useSubscription();
   const { sonidoHabilitado, vibracionHabilitada, toggleSonido, toggleVibracion } = useSound();
 
   const [showConfig, setShowConfig] = useState(false);
-  
-  // --- NUEVO: Estado para el modal de confirmación de borrado ---
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+
+  // Avatar
+  const [showAvatarPicker, setShowAvatarPicker] = useState(false);
+  const [guardandoAvatar, setGuardandoAvatar] = useState(false);
+
+  // Avatares disponibles (emojis → URL de twemoji para que se vean igual en todos los dispositivos)
+  const AVATARES = [
+    '🐻','🦊','🐯','🐸','🐧','🦁','🐼','🐨',
+    '🦄','🐙','🦋','🐺','🐮','🐵','🦝','🤠',
+    '👾','🤖','💀','🧠','🎃','🔥','⚡','🍻'
+  ];
+
+  const elegirAvatar = async (emoji: string) => {
+    if (!auth.currentUser || !user?.uid) return;
+    setGuardandoAvatar(true);
+    try {
+      // Guardamos el emoji como string en Firestore y en Firebase Auth
+      await updateProfile(auth.currentUser, { photoURL: emoji });
+      await api.actualizarUsuario(user.uid, { avatar: emoji });
+      actualizarAvatarLocal(emoji);
+      setShowAvatarPicker(false);
+    } catch (e) {
+      console.error('Error cambiando avatar:', e);
+      alert('No se pudo cambiar el avatar');
+    }
+    setGuardandoAvatar(false);
+  };
+
   
   // States for name editing
   const [editandoNombre, setEditandoNombre] = useState(false);
@@ -41,13 +68,14 @@ export const Home = ({ irA }: Props) => {
         if (user?.uid) {
             await api.actualizarNombreUsuario(user.uid, nuevoNombre);
         }
-        window.location.reload(); 
+        // Update local state without a full page reload
+        actualizarNombreLocal(nuevoNombre);
+        setEditandoNombre(false);
     } catch (e) {
         console.error(e);
         alert("Error al cambiar nombre");
     }
     setGuardandoNombre(false);
-    setEditandoNombre(false);
   };
 
   // 1. Al tocar el botón rojo, solo mostramos el modal (ya no salta la alerta del navegador)
@@ -68,8 +96,7 @@ export const Home = ({ irA }: Props) => {
         console.log("2. Buscando en colección: 'usuarios'"); // <--- OJO ACÁ
 
         // PASO A: Borrar de Firestore
-        // ⚠️ Si tu colección se llama 'usuarios' o 'players', CAMBIÁ EL 'users' DE ABAJO
-        const docRef = doc(db, "users", uid); 
+        const docRef = doc(db, "usuarios", uid); // Colección correcta
         
         try {
             await deleteDoc(docRef);
@@ -110,33 +137,25 @@ export const Home = ({ irA }: Props) => {
   };
 
   return (
-    <Container className="d-flex flex-column min-vh-100 p-4 justify-content-center align-items-center text-center">
+    <Container className="d-flex flex-column min-vh-100 p-0 justify-content-center align-items-center text-center">
       
-      {/* --- HEADER --- */}
-      <div className="position-absolute top-0 end-0 m-3 d-flex gap-2 align-items-center" style={{ zIndex: 10 }}>
-            <button 
-                className={`btn btn-sm rounded-pill fw-bold border-0 animate-pulse d-flex align-items-center gap-1 ${accesoVip ? 'bg-warning text-dark' : 'btn-outline-warning'}`}
-                style={{ height: '38px', paddingLeft: '12px', paddingRight: '12px' }} 
-                onClick={() => irA('store')}
-            >
-                {accesoVip ? '👑 VIP' : '💎 TIENDA'}
-            </button>
+      {/* --- HEADER UNIFICADO --- */}
+      <TopBar
+        titulo="VIAJERO"
+        color="var(--neon-cyan, #66fcf1)"
+        onAvatarClick={() => setShowConfig(true)}
+      />
+      <div className="topbar-spacer" />
 
-            <div onClick={() => setShowConfig(true)} style={{cursor: 'pointer'}}>
-                {user?.photoURL ? (
-                    <img 
-                        src={user.photoURL} 
-                        alt="Perfil" 
-                        className="rounded-circle border border-2 border-info shadow"
-                        style={{width: '40px', height: '40px', objectFit: 'cover'}} 
-                    />
-                ) : (
-                    <div className="btn btn-dark rounded-circle border border-secondary d-flex align-items-center justify-content-center" 
-                         style={{width: '40px', height: '40px'}}>
-                        👤
-                    </div>
-                )}
-            </div>
+      {/* Botón VIP/Tienda flotante (esquina sup. derecha, extra) */}
+      <div className="position-absolute top-0 end-0 m-3" style={{ zIndex: 20, marginTop: '60px' }}>
+        <button
+          className={`btn btn-sm rounded-pill fw-bold border-0 d-flex align-items-center gap-1 ${accesoVip ? 'bg-warning text-dark animate-pulse' : 'btn-outline-warning'}`}
+          style={{ height: '34px', paddingLeft: '12px', paddingRight: '12px' }}
+          onClick={() => irA('store')}
+        >
+          {accesoVip ? '👑 VIP' : '💎 TIENDA'}
+        </button>
       </div>
 
       {/* --- LOGO --- */}
@@ -195,25 +214,81 @@ export const Home = ({ irA }: Props) => {
         <Modal.Body className="text-center px-4 pb-4">
             
             <div className="position-relative d-inline-block mb-3">
-                {user?.photoURL ? (
-                    <img 
-                        src={user.photoURL} 
-                        alt="Avatar" 
-                        className="rounded-circle border border-2 border-white shadow-lg"
-                        style={{width: '90px', height: '90px', objectFit: 'cover'}}
-                    />
-                ) : (
-                    <div className="rounded-circle bg-secondary d-flex align-items-center justify-content-center border border-2 border-white mx-auto" 
-                         style={{width: '90px', height: '90px', fontSize: '2.5rem'}}>
-                        👤
+                {/* AVATAR: emoji o foto de Google */}
+                <div 
+                  onClick={() => setShowAvatarPicker(true)}
+                  style={{ cursor: 'pointer', position: 'relative', display: 'inline-block' }}
+                  title="Cambiar avatar"
+                >
+                  {user?.photoURL && !user.photoURL.startsWith('http') ? (
+                    // Es un emoji guardado
+                    <div 
+                      className="rounded-circle border border-2 border-white shadow-lg d-flex align-items-center justify-content-center"
+                      style={{ width: '90px', height: '90px', fontSize: '3rem', background: 'rgba(255,255,255,0.1)' }}
+                    >
+                      {user.photoURL}
                     </div>
-                )}
+                  ) : user?.photoURL ? (
+                    // Es una foto de Google
+                    <img
+                      src={user.photoURL}
+                      alt="Avatar"
+                      className="rounded-circle border border-2 border-white shadow-lg"
+                      style={{ width: '90px', height: '90px', objectFit: 'cover' }}
+                    />
+                  ) : (
+                    <div className="rounded-circle bg-secondary d-flex align-items-center justify-content-center border border-2 border-white mx-auto"
+                         style={{ width: '90px', height: '90px', fontSize: '2.5rem' }}>
+                      👤
+                    </div>
+                  )}
+                  {/* Botón cámara encima */}
+                  <div 
+                    className="position-absolute bottom-0 end-0 rounded-circle bg-info d-flex align-items-center justify-content-center border border-2 border-dark"
+                    style={{ width: '28px', height: '28px', fontSize: '0.8rem' }}
+                  >
+                    {guardandoAvatar ? '⏳' : '✏️'}
+                  </div>
+                </div>
+
                 {accesoVip && (
                     <div className="position-absolute top-0 end-0 translate-middle badge rounded-pill bg-warning border border-dark text-dark" style={{fontSize: '1.2rem'}}>
                         👑
                     </div>
                 )}
             </div>
+
+            {/* === GRID SELECTOR DE AVATAR === */}
+            {showAvatarPicker && (
+              <div className="card-shamona p-3 mb-3 animate-in zoom-in" style={{ border: '1px solid rgba(0,212,255,0.4)' }}>
+                <small className="text-info text-uppercase fw-bold d-block mb-2" style={{ letterSpacing: '1px' }}>ELEGÍ TU AVATAR</small>
+                <div className="d-flex flex-wrap justify-content-center gap-2">
+                  {AVATARES.map(emoji => (
+                    <button
+                      key={emoji}
+                      onClick={() => elegirAvatar(emoji)}
+                      disabled={guardandoAvatar}
+                      className="btn btn-dark rounded-circle d-flex align-items-center justify-content-center"
+                      style={{
+                        width: '48px', height: '48px', fontSize: '1.6rem',
+                        border: user?.photoURL === emoji ? '2px solid var(--neon-cyan)' : '1px solid rgba(255,255,255,0.15)',
+                        boxShadow: user?.photoURL === emoji ? '0 0 8px var(--neon-cyan)' : 'none',
+                        transition: 'all 0.15s'
+                      }}
+                    >
+                      {emoji}
+                    </button>
+                  ))}
+                </div>
+                <button 
+                  className="btn btn-link text-white-50 small mt-2 text-decoration-none"
+                  onClick={() => setShowAvatarPicker(false)}
+                >
+                  Cancelar
+                </button>
+              </div>
+            )}
+
 
             {editandoNombre ? (
                 <InputGroup className="mb-3 justify-content-center">

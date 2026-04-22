@@ -3,8 +3,6 @@ import { Cocktail } from '../types';
 
 interface TopViewProps {
   onCocktailClick: (cocktail: Cocktail) => void;
-  onSearchClick: () => void;
-  onBackClick: () => void;
   allCocktails?: Cocktail[];
 }
 
@@ -74,9 +72,6 @@ const TopView: React.FC<TopViewProps> = ({ onCocktailClick, allCocktails = [] })
         )}
       </main>
 
-      <button className="fixed bottom-32 right-6 w-14 h-14 bg-primary text-white rounded-full flex items-center justify-center shadow-2xl shadow-primary/40 z-50 active:scale-90 transition-transform">
-        <span className="material-symbols-outlined text-2xl">tune</span>
-      </button>
       
       <style>{`
         .neon-text {

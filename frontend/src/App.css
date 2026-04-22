@@ -221,3 +221,102 @@ body {
     min-height: 380px;
   }
 }
+
+/* --- TOP BAR (Barra Superior) --- */
+.topbar-container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  background: rgba(11, 12, 16, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba(102, 252, 241, 0.15);
+}
+
+.topbar-btn-back {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(102, 252, 241, 0.4);
+  background: rgba(102, 252, 241, 0.08);
+  color: var(--neon-cyan);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  font-size: 1.3rem;
+  font-weight: bold;
+  line-height: 1;
+}
+
+.topbar-btn-back:hover {
+  background: rgba(102, 252, 241, 0.2);
+  box-shadow: 0 0 12px rgba(102, 252, 241, 0.3);
+  transform: scale(1.08);
+}
+
+.topbar-btn-back:active {
+  transform: scale(0.92);
+}
+
+.topbar-titulo {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.topbar-icono {
+  font-size: 1.3rem;
+}
+
+.topbar-titulo-text {
+  font-weight: 800;
+  font-size: 0.95rem;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+}
+
+.topbar-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(102, 252, 241, 0.4);
+  background: rgba(102, 252, 241, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  overflow: hidden;
+  padding: 0;
+  transition: all 0.25s ease;
+}
+
+.topbar-avatar:hover {
+  border-color: var(--neon-cyan);
+  box-shadow: 0 0 12px rgba(102, 252, 241, 0.3);
+  transform: scale(1.08);
+}
+
+.topbar-avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+}
+
+.topbar-avatar-emoji {
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+/* Espacio para que el contenido no quede debajo del topbar fijo */
+.topbar-spacer {
+  height: 56px;
+}

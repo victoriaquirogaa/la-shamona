@@ -2,9 +2,10 @@ import { useState, useEffect } from 'react';
 import { Container, Spinner, Row, Col } from 'react-bootstrap';
 import { api } from '../lib/api';
 import Swal from 'sweetalert2';
-import '../App.css'; 
+import '../App.css';
 import { AdService } from '../lib/AdMobUtils';
-import { useSubscription } from '../context/SubscriptionContext'; 
+import { useSubscription } from '../context/SubscriptionContext';
+import TopBar from '../components/TopBar';
 
 interface Props {
   datos: { codigo: string; soyHost: boolean; nombre: string };
@@ -182,13 +183,14 @@ export const PiramideOnline = ({ datos, salir, volver }: Props) => {
   );
 
   return (
-    <Container className="min-vh-100 py-4 bg-dark text-white text-center d-flex flex-column align-items-center">
+    <Container className="min-vh-100 py-0 bg-dark text-white text-center d-flex flex-column align-items-center">
       
-      {/* HEADER */}
-      <div className="mb-4">
-           <h2 className="titulo-neon m-0 fs-1" style={{color: '#ff5500', textShadow: '0 0 10px #ff5500'}}>LA PIRÁMIDE</h2>
-           <small className="text-white-50 ls-2">Fase: {p.fase === "RECOLECCION" ? "APUESTAS" : "REVELACIÓN"}</small>
-      </div>
+      {/* TOPBAR */}
+      <TopBar titulo="LA PIRÁMIDE" icono="🎴" color="#ff5500" onVolver={datos.soyHost ? handleFinalizar : volver} />
+      <div className="topbar-spacer" />
+
+      {/* FASE Y CONTENIDO */}
+      <small className="text-white-50 ls-2 mb-4 mt-2">Fase: {p.fase === "RECOLECCION" ? "APUESTAS" : "REVELACIÓN"}</small>
       
       {p.fase === "RECOLECCION" ? renderRecoleccion() : renderPiramide()}
 

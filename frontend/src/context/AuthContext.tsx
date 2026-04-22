@@ -24,6 +24,8 @@ interface AuthContextType {
   loginAnonymously: () => Promise<any>;
   logout: () => Promise<void>;
   updateSettings: (newSettings: any) => void;
+  actualizarNombreLocal: (nuevoNombre: string) => void;
+  actualizarAvatarLocal: (nuevoAvatar: string) => void;
 }
 
 const AuthContext = createContext<AuthContextType>({} as AuthContextType);
@@ -129,8 +131,18 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setSettings(prev => ({ ...prev, ...newSettings }));
   };
 
+  // Updates the display name in local state without triggering a full page reload
+  const actualizarNombreLocal = (nuevoNombre: string) => {
+      setUser((prev: any) => ({ ...prev, nombre: nuevoNombre }));
+  };
+
+  // Updates the avatar/photoURL in local state without triggering a full page reload
+  const actualizarAvatarLocal = (nuevoAvatar: string) => {
+      setUser((prev: any) => ({ ...prev, avatar: nuevoAvatar, photoURL: nuevoAvatar }));
+  };
+
   return (
-    <AuthContext.Provider value={{ user, loading, settings, loginWithGoogle, loginWithEmail, registerWithEmail, loginAnonymously, logout, updateSettings }}>
+    <AuthContext.Provider value={{ user, loading, settings, loginWithGoogle, loginWithEmail, registerWithEmail, loginAnonymously, logout, updateSettings, actualizarNombreLocal, actualizarAvatarLocal }}>
       {!loading && children}
     </AuthContext.Provider>
   );

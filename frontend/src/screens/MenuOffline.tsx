@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Container } from 'react-bootstrap';
-import '../App.css'; // 👈 Asegurate de importar los estilos
+import '../App.css';
+import TopBar from '../components/TopBar';
 
 interface Props {
   irA: (pantalla: string) => void;
@@ -11,22 +12,10 @@ export const MenuOffline = ({ irA, volver }: Props) => {
   const [modoVotacion, setModoVotacion] = useState(false);
 
   return (
-    <Container className="min-vh-100 d-flex flex-column p-4">
-      
-      {/* --- HEADER --- */}
-      <div className="d-flex align-items-center mb-5 animate-in fade-in">
-        <button 
-            className="btn btn-outline-light rounded-circle me-3 d-flex align-items-center justify-content-center" 
-            style={{width: '40px', height: '40px', border: '1px solid var(--neon-cyan)', color: 'var(--neon-cyan)'}}
-            onClick={volver}
-        >
-            🡠
-        </button>
-        <div>
-            <h2 className="titulo-neon m-0 lh-1">OFFLINE</h2>
-            <small className="text-white-50" style={{letterSpacing: '1px'}}>Para jugar acá y ahora</small>
-        </div>
-      </div>
+    <Container className="min-vh-100 d-flex flex-column p-0">
+      <TopBar titulo="OFFLINE" icono="📱" color="var(--neon-cyan)" onVolver={volver} />
+      <div className="topbar-spacer" />
+      <div className="p-4 flex-grow-1 d-flex flex-column">
 
       <div className="flex-grow-1 d-flex flex-column gap-3 align-items-center w-100">
         
@@ -133,6 +122,7 @@ export const MenuOffline = ({ irA, volver }: Props) => {
       <div className="text-center mt-4 opacity-25 small">
         Seleccioná un juego para empezar
       </div>
+      </div>
     </Container>
   );
-};
+};

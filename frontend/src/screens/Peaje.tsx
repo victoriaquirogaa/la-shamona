@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
 import { Container } from 'react-bootstrap';
 import { api } from '../lib/api';
-import '../App.css'; 
+import '../App.css';
 import { AdService } from '../lib/AdMobUtils';
-import { useSubscription } from '../context/SubscriptionContext'; 
+import { useSubscription } from '../context/SubscriptionContext';
+import TopBar from '../components/TopBar';
 
 interface Props { volver: () => void; }
 
@@ -110,13 +111,10 @@ export const Peaje = ({ volver }: Props) => {
   };
 
   return (
-    <Container className="min-vh-100 d-flex flex-column align-items-center py-4 text-center">
-      
-      {/* HEADER */}
-      <div className="w-100 d-flex justify-content-between align-items-center mb-4 px-2" style={{maxWidth: '600px'}}>
-        <div className="titulo-neon m-0 fs-3">EL PEAJE 🚧</div>
-        <button className="btn btn-sm btn-outline-light rounded-pill px-3" onClick={handleSalir}>SALIR</button>
-      </div>
+    <Container className="min-vh-100 d-flex flex-column align-items-center py-0 text-center">
+      <TopBar titulo="EL PEAJE" icono="🚧" color="#ffd700" onVolver={handleSalir} />
+      <div className="topbar-spacer" />
+      <div className="w-100 d-flex flex-column align-items-center px-3">
 
       {/* TABLERO (Roadmap) */}
       <div className="card-shamona p-3 mb-4 w-100 animate-in slide-up" style={{maxWidth: '500px'}}>
@@ -194,7 +192,7 @@ export const Peaje = ({ volver }: Props) => {
           </button>
         </div>
       )}
-
+      </div>
     </Container>
   );
-};
+};
