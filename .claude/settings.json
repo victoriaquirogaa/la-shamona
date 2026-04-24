@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Read",
+      "Edit",
+      "WebSearch",
+      "Bash(npm run *)",
+      "Bash(npx *)",
+      "Bash(git *)",
+      "Bash(cd *)"
+    ],
+    "deny": [
+      "Bash(rm -rf /)",
+      "Bash(del /s /q C:\\)"
+    ]
+  }
+}
